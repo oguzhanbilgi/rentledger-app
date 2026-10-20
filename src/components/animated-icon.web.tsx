@@ -1,108 +1,153 @@
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { StyleSheet, View } from 'react-native';
-import Animated, { Keyframe, Easing } from 'react-native-reanimated';
+import { getI18nState } from '@/services/i18n';
 
-import classes from './animated-icon.module.css';
-const DURATION = 300;
-
-export function AnimatedSplashOverlay() {
-  return null;
+export interface AnimatedSplashOverlayProps {
+  appName?: string;
+  tagline?: string;
 }
 
-const keyframe = new Keyframe({
-  0: {
-    transform: [{ scale: 0 }],
-  },
-  60: {
-    transform: [{ scale: 1.2 }],
-    easing: Easing.elastic(1.2),
-  },
-  100: {
-    transform: [{ scale: 1 }],
-    easing: Easing.elastic(1.2),
-  },
-});
+export function AnimatedSplashOverlay({
+  appName = 'RentLedger Pro',
+  tagline,
+}: AnimatedSplashOverlayProps) {
+  const [visible, setVisible] = useState(true);
+  const lang = getI18nState().lang;
+  const isTr = lang === 'tr';
 
-const logoKeyframe = new Keyframe({
-  0: {
-    opacity: 0,
-  },
-  60: {
-    transform: [{ scale: 1.2 }],
-    opacity: 0,
-    easing: Easing.elastic(1.2),
-  },
-  100: {
-    transform: [{ scale: 1 }],
-    opacity: 1,
-    easing: Easing.elastic(1.2),
-  },
-});
+  const defaultTagline = isTr ? 'Kira Takip & Resmi Makbuz' : 'Smart Rent Ledger & Receipts';
+  const displayTagline = tagline || defaultTagline;
+  const loadingText = isTr ? 'Yükleniyor...' : 'Loading...';
+  const subText = isTr ? 'Kira kayıtlarınız hazırlanıyor' : 'Preparing your workspace';
 
-const glowKeyframe = new Keyframe({
-  0: {
-    transform: [{ rotateZ: '-180deg' }, { scale: 0.8 }],
-    opacity: 0,
-  },
-  [DURATION / 1000]: {
-    transform: [{ rotateZ: '0deg' }, { scale: 1 }],
-    opacity: 1,
-    easing: Easing.elastic(0.7),
-  },
-  100: {
-    transform: [{ rotateZ: '7200deg' }],
-  },
-});
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setVisible(false);
+    }, 1600);
+    return () => clearTimeout(timer);
+  }, []);
 
-export function AnimatedIcon() {
+  if (!visible) return null;
+
   return (
-    <View style={styles.iconContainer}>
-      <Animated.View entering={glowKeyframe.duration(60 * 1000 * 4)} style={styles.glow}>
-        <Image style={styles.glow} source={require('@/assets/images/logo-glow.png')} />
-      </Animated.View>
+    <View style={styles.overlay} pointerEvents="none">
+      <View style={styles.contentContainer}>
+        <View style={styles.iconWrapper}>
+          <Image
+            source={require('@/assets/images/icon.png')}
+            style={styles.iconImage}
+            contentFit="cover"
+          />
+        </View>
 
-      <Animated.View style={styles.background} entering={keyframe.duration(DURATION)}>
-        <div className={classes.expoLogoBackground} />
-      </Animated.View>
+        <Text style={styles.titleText}>{appName}</Text>
+        <Text style={styles.taglineText}>{displayTagline}</Text>
 
-      <Animated.View style={styles.imageContainer} entering={logoKeyframe.duration(DURATION)}>
-        <Image style={styles.image} source={require('@/assets/images/expo-logo.png')} />
-      </Animated.View>
+        <View style={styles.progressTrack}>
+          <View style={styles.progressBar} />
+        </View>
+
+        <View style={styles.statusRow}>
+          <View style={styles.pulsingDot} />
+          <Text style={styles.loadingText}>{loadingText}</Text>
+        </View>
+        <Text style={styles.subText}>{subText}</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#070b14',
+    zIndex: 99999,
+    justifyContent: 'center',
     alignItems: 'center',
+  },
+  contentContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 32,
     width: '100%',
-    zIndex: 1000,
-    position: 'absolute',
-    top: 128 / 2 + 138,
+    maxWidth: 420,
   },
-  imageContainer: {
-    justifyContent: 'center',
+  iconWrapper: {
+    width: 104,
+    height: 104,
+    borderRadius: 28,
+    backgroundColor: '#0f172a',
+    borderWidth: 2,
+    borderColor: 'rgba(52, 211, 153, 0.35)',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    overflow: 'hidden',
+    marginBottom: 24,
+  },
+  iconImage: {
+    width: '100%',
+    height: '100%',
+  },
+  titleText: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#ffffff',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  taglineText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#34d399',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    marginBottom: 36,
+    textAlign: 'center',
+  },
+  progressTrack: {
+    width: '75%',
+    height: 5,
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    borderRadius: 999,
+    overflow: 'hidden',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(51, 65, 85, 0.5)',
+  },
+  progressBar: {
+    height: '100%',
+    width: '100%',
+    backgroundColor: '#10b981',
+    borderRadius: 999,
+  },
+  statusRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
   },
-  glow: {
-    width: 201,
-    height: 201,
-    position: 'absolute',
+  pulsingDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#34d399',
   },
-  iconContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 128,
-    height: 128,
+  loadingText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#f8fafc',
+    letterSpacing: 0.3,
   },
-  image: {
-    position: 'absolute',
-    width: 76,
-    height: 71,
-  },
-  background: {
-    width: 128,
-    height: 128,
-    position: 'absolute',
+  subText: {
+    fontSize: 12,
+    color: '#94a3b8',
+    letterSpacing: 0.2,
   },
 });
