@@ -133,11 +133,24 @@ Download RentLedger Pro today and make landlord management effortless and organi
 
 ---
 
-## 🏷️ Google Play Metadata
-- **Category:** Business (İş Dünyası) / Finance (Finans)
-- **Content Rating:** Everyone (3+)
-- **Target Audience:** Landlords, property owners, real estate agents (Ev sahipleri, emlakçılar, kiraya verenler)
-- **Monetization:** Free with Ads (Banner, Rewarded) + In-App Subscriptions (RevenueCat)
-- **Privacy Policy URL:** `https://oguzhanbilgi.github.io/obappstudio-legal/privacy.html`
-- **Terms URL:** `https://oguzhanbilgi.github.io/obappstudio-legal/terms.html`
-- **Support Email:** `oguzhanbilgi1@gmail.com`
+## 🏷️ Google Play Metadata, Kategori ve Etiketler (Tags)
+
+### 📂 Uygulama Kategorisi
+- **Uygulama veya Oyun:** Uygulama (App)
+- **Birincil Kategori:** **İş / İşletme (Business)** *(Alternatif: Finans / Finance)*
+
+### 🔖 Mağaza Etiketleri (Google Play Tags — En Çok Önerilen 5 Etiket)
+Google Play Console'da **"Etiketleri Yönet" (Manage tags)** butonuna basarak aşağıdaki 5 etiketi seçin (Google Play arama algoritmalarında en yüksek organik dönüşümü sağlar):
+1. **Gayrimenkul (Real estate)**
+2. **İşletme (Business)**
+3. **Kişisel Finans (Personal finance)**
+4. **Verimlilik (Productivity)**
+5. **Faturalandırma (Billing / Invoicing)**
+
+---
+
+### ℹ️ Diğer Mağaza Bilgileri
+- **Hedef Kitle:** 18 yaş ve üzeri (Yetişkinler, Ev sahipleri, Emlakçılar, Mülk yöneticileri)
+- **Monetization:** Ücretsiz (AdMob Banner + Rewarded) & In-App Subscriptions (RevenueCat)
+- **Gizlilik Politikası (Privacy Policy URL):** `https://github.com/oguzhanbilgi/rentledger-app/blob/master/PRIVACY_POLICY.md`
+- **Destek / İletişim E-posta:** `oguzhanbilgidev@gmail.com`
