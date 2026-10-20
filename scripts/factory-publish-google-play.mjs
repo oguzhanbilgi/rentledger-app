@@ -189,7 +189,7 @@ async function setupSubscriptions(token) {
           description: s.descEn,
           benefits: [
             'Unlimited Properties & Tenants',
-            'Watermark-Free Official PDF Rent Receipts',
+            'Official Watermark-Free Receipts',
             '100% Ad-Free Experience',
           ],
         },
@@ -286,82 +286,47 @@ async function setupSubscriptions(token) {
 
 async function setupLifetimeInAppProduct(token) {
   console.log('\n💎 Configuring One-Time Lifetime Product (rentledger_lifetime)...');
-  const body = {
+  const sku = 'rentledger_lifetime';
+  const inAppBody = {
     packageName: PACKAGE_NAME,
-    productId: 'rentledger_lifetime',
-    listings: [
-      {
-        languageCode: 'tr-TR',
-        title: 'RentLedger Ömür Boyu Sınırsız PRO',
+    sku,
+    status: 'active',
+    purchaseType: 'managedUser',
+    defaultPrice: {
+      currency: 'USD',
+      priceMicros: '79990000',
+    },
+    prices: {
+      TR: {
+        currency: 'TRY',
+        priceMicros: '1499990000',
+      },
+    },
+    listings: {
+      'en-US': {
+        title: 'RentLedger Lifetime Unlimited',
+        description: 'One-time payment for lifetime ad-free, unlimited properties & receipts.',
+      },
+      'tr-TR': {
+        title: 'RentLedger Ömür Boyu Sınırsız',
         description: 'Tek seferlik ödeme ile ömür boyu reklamsız ve sınırsız mülk & kira makbuzu.',
       },
-      {
-        languageCode: 'en-US',
-        title: 'RentLedger Lifetime Unlimited PRO',
-        description: 'One-time payment for lifetime ad-free and unlimited property management & rent receipts.',
-      },
-    ],
-    purchaseOptions: [
-      {
-        purchaseOptionId: 'default',
-        buyOption: {
-          legacyCompatible: true,
-        },
-        regionalPricingAndAvailabilityConfigs: [
-          {
-            regionCode: 'TR',
-            price: {
-              currencyCode: 'TRY',
-              units: '1499',
-              nanos: 990000000,
-            },
-            availability: 'AVAILABLE',
-          },
-          {
-            regionCode: 'US',
-            price: {
-              currencyCode: 'USD',
-              units: '49',
-              nanos: 990000000,
-            },
-            availability: 'AVAILABLE',
-          },
-        ],
-      },
-    ],
+    },
+    defaultLanguage: 'en-US',
   };
 
   try {
-    await playApi(
-      token,
-      'PATCH',
-      `/applications/${PACKAGE_NAME}/onetimeproducts/rentledger_lifetime`,
-      body,
-      {
-        allowMissing: true,
-        updateMask: 'listings,purchaseOptions',
-        'regionsVersion.version': '2022/02',
+    try {
+      await playApi(token, 'POST', `/applications/${PACKAGE_NAME}/inappproducts`, inAppBody);
+      console.log('✅ Created In-App Product: rentledger_lifetime');
+    } catch (e) {
+      if (e.status === 409 || e.message?.includes('already exists') || e.message?.includes('400')) {
+        await playApi(token, 'PUT', `/applications/${PACKAGE_NAME}/inappproducts/${sku}`, inAppBody);
+        console.log('✅ Updated In-App Product: rentledger_lifetime');
+      } else {
+        throw e;
       }
-    );
-    console.log('✅ Created/Updated One-Time Product: rentledger_lifetime');
-
-    await playApi(
-      token,
-      'POST',
-      `/applications/${PACKAGE_NAME}/onetimeproducts/rentledger_lifetime/purchaseoptions:batchUpdateStates`,
-      {
-        requests: [
-          {
-            activatePurchaseOptionRequest: {
-              packageName: PACKAGE_NAME,
-              productId: 'rentledger_lifetime',
-              purchaseOptionId: 'default',
-            },
-          },
-        ],
-      }
-    );
-    console.log('✅ Activated One-Time Product: rentledger_lifetime');
+    }
   } catch (e) {
     console.warn('⚠️ Lifetime product warning:', e.message);
   }
