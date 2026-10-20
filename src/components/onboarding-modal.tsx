@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   BellRing,
   Building2,
@@ -37,9 +38,9 @@ export function OnboardingModal({ visible, onFinish, lang }: OnboardingModalProp
 
   return (
     <Modal visible={visible} animationType="fade" transparent={false}>
-      <View className="flex-1 bg-slate-900 justify-between p-6">
+      <SafeAreaView className="flex-1 bg-slate-900 justify-between px-6 pb-2 pt-2">
         {/* Top Progress bar */}
-        <View className="pt-8">
+        <View className="pt-2">
           <View className="flex-row items-center justify-between mb-3">
             <Text className="text-xs font-bold uppercase tracking-widest text-emerald-400">
               RentLedger Pro • {isTr ? `Adım ${step + 1} / ${totalSteps}` : `Step ${step + 1} of ${totalSteps}`}
@@ -251,7 +252,7 @@ export function OnboardingModal({ visible, onFinish, lang }: OnboardingModalProp
         </ScrollView>
 
         {/* Footer Button */}
-        <View className="pt-4 border-t border-slate-800">
+        <View className="pt-3 pb-2 border-t border-slate-800">
           <Pressable
             onPress={handleNext}
             className="w-full py-4 rounded-2xl bg-emerald-500 active:opacity-85 flex-row items-center justify-center gap-2 shadow-lg">
@@ -261,7 +262,7 @@ export function OnboardingModal({ visible, onFinish, lang }: OnboardingModalProp
             <ChevronRight size={18} color="#0f172a" />
           </Pressable>
         </View>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }
