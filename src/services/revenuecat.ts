@@ -28,45 +28,92 @@ export interface PricingPlan {
   highlight?: boolean;
 }
 
-export const PRICING_PLANS: PricingPlan[] = [
-  {
-    id: 'weekly',
-    rcPackageIdentifier: '$rc_weekly',
-    title: 'Haftalık Başlangıç',
-    subtitle: 'Kısa süreli deneme ve hızlı tahsilat',
-    priceString: '₺79,99',
-    periodLabel: '/ hafta',
-  },
-  {
-    id: 'monthly',
-    rcPackageIdentifier: '$rc_monthly',
-    title: 'Aylık Pro Paket',
-    subtitle: 'Düzenli mülk ve kiracı takibi için ideal',
-    priceString: '₺199,99',
-    periodLabel: '/ ay',
-    badge: 'ESNEK AYLIK PLAN',
-  },
-  {
-    id: 'annual',
-    rcPackageIdentifier: '$rc_annual',
-    title: 'Yıllık Pro Paket',
-    subtitle: 'Aylık sadece ₺66 • İstediğiniz zaman iptal edin',
-    priceString: '₺799,99',
-    periodLabel: '/ yıl',
-    badge: 'EN POPÜLER • %75 TASARRUF',
-    savingsText: '%75 İndirimli',
-    highlight: true,
-  },
-  {
-    id: 'lifetime',
-    rcPackageIdentifier: '$rc_lifetime',
-    title: 'Ömür Boyu Sınırsız',
-    subtitle: 'Tek seferlik ödeme, sonsuza kadar sınırsız mülk & makbuz',
-    priceString: '₺1.499,99',
-    periodLabel: 'tek ödeme',
-    badge: 'EN İYİ DEĞER',
-  },
-];
+export const PRICING_PLANS_BY_LANG: Record<'en' | 'tr', PricingPlan[]> = {
+  tr: [
+    {
+      id: 'weekly',
+      rcPackageIdentifier: '$rc_weekly',
+      title: 'Haftalık Başlangıç',
+      subtitle: 'Kısa süreli deneme ve hızlı tahsilat',
+      priceString: '₺79,99',
+      periodLabel: '/ hafta',
+    },
+    {
+      id: 'monthly',
+      rcPackageIdentifier: '$rc_monthly',
+      title: 'Aylık Pro Paket',
+      subtitle: 'Düzenli mülk ve kiracı takibi için ideal',
+      priceString: '₺199,99',
+      periodLabel: '/ ay',
+      badge: 'ESNEK AYLIK PLAN',
+    },
+    {
+      id: 'annual',
+      rcPackageIdentifier: '$rc_annual',
+      title: 'Yıllık Pro Paket',
+      subtitle: 'Aylık sadece ₺66 • İstediğiniz zaman iptal edin',
+      priceString: '₺799,99',
+      periodLabel: '/ yıl',
+      badge: 'EN POPÜLER • %75 TASARRUF',
+      savingsText: '%75 İndirimli',
+      highlight: true,
+    },
+    {
+      id: 'lifetime',
+      rcPackageIdentifier: '$rc_lifetime',
+      title: 'Ömür Boyu Sınırsız',
+      subtitle: 'Tek seferlik ödeme, sonsuza kadar sınırsız mülk & makbuz',
+      priceString: '₺1.499,99',
+      periodLabel: 'tek ödeme',
+      badge: 'EN İYİ DEĞER',
+    },
+  ],
+  en: [
+    {
+      id: 'weekly',
+      rcPackageIdentifier: '$rc_weekly',
+      title: 'Weekly Starter',
+      subtitle: 'Short-term trial & fast receipts',
+      priceString: '$4.99',
+      periodLabel: '/ week',
+    },
+    {
+      id: 'monthly',
+      rcPackageIdentifier: '$rc_monthly',
+      title: 'Monthly Pro',
+      subtitle: 'Ideal for regular rent & tenant tracking',
+      priceString: '$9.99',
+      periodLabel: '/ mo',
+      badge: 'FLEXIBLE PLAN',
+    },
+    {
+      id: 'annual',
+      rcPackageIdentifier: '$rc_annual',
+      title: 'Annual Pro',
+      subtitle: 'Only $3.33/mo • Cancel anytime',
+      priceString: '$39.99',
+      periodLabel: '/ year',
+      badge: 'MOST POPULAR • 75% OFF',
+      savingsText: 'Save 75%',
+      highlight: true,
+    },
+    {
+      id: 'lifetime',
+      rcPackageIdentifier: '$rc_lifetime',
+      title: 'Lifetime Unlimited',
+      subtitle: 'One-time payment, unlimited properties & receipts forever',
+      priceString: '$79.99',
+      periodLabel: 'one-time',
+      badge: 'BEST VALUE',
+    },
+  ],
+};
+
+export function getPricingPlans(lang: 'en' | 'tr' = 'en'): PricingPlan[] {
+  return PRICING_PLANS_BY_LANG[lang] || PRICING_PLANS_BY_LANG.en;
+}
+
+export const PRICING_PLANS: PricingPlan[] = PRICING_PLANS_BY_LANG.en;
 
 export interface SubscriptionState {
   isPro: boolean;
@@ -110,9 +157,12 @@ export function getCurrentSubscriptionState(): SubscriptionState {
  * yerelleştirilmiş canlı fiyatları (`pkg.product.priceString`) çeker ve 3 pakete (`weekly`, `annual`, `lifetime`) eşler.
  * Sandbox veya önizleme ortamlarında `PRICING_PLANS` varsayılanlarına döner.
  */
-export async function fetchLivePricingPlans(): Promise<PricingPlan[]> {
+export async function fetchLivePricingPlans(
+  lang: 'en' | 'tr' = 'en'
+): Promise<PricingPlan[]> {
+  const basePlans = getPricingPlans(lang);
   if (Platform.OS === 'web') {
-    return PRICING_PLANS;
+    return basePlans;
   }
 
   try {
@@ -131,7 +181,7 @@ export async function fetchLivePricingPlans(): Promise<PricingPlan[]> {
       const availablePackages = offerings.current?.availablePackages || [];
 
       if (availablePackages.length > 0) {
-        return PRICING_PLANS.map((plan) => {
+        return basePlans.map((plan) => {
           const matchedPkg = availablePackages.find(
             (pkg) =>
               pkg.identifier === plan.rcPackageIdentifier ||
@@ -152,7 +202,7 @@ export async function fetchLivePricingPlans(): Promise<PricingPlan[]> {
     // Sandbox / Expo Go ortamında varsayılan fiyat listesini kullan
   }
 
-  return PRICING_PLANS;
+  return basePlans;
 }
 
 export async function initializeRevenueCat(): Promise<SubscriptionState> {

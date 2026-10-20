@@ -13,45 +13,98 @@ export const REVENUECAT_CONFIG = {
   entitlementId: 'pro_access',
 };
 
-export const PRICING_PLANS: PricingPlan[] = [
-  {
-    id: 'weekly',
-    rcPackageIdentifier: '$rc_weekly',
-    title: 'Haftalık Başlangıç',
-    subtitle: 'Kısa süreli deneme ve hızlı tahsilat',
-    priceString: '₺79,99',
-    periodLabel: '/ hafta',
-  },
-  {
-    id: 'monthly',
-    rcPackageIdentifier: '$rc_monthly',
-    title: 'Aylık Pro Paket',
-    subtitle: 'Düzenli mülk ve kiracı takibi için ideal',
-    priceString: '₺199,99',
-    periodLabel: '/ ay',
-    badge: 'ESNEK AYLIK PLAN',
-  },
-  {
-    id: 'annual',
-    rcPackageIdentifier: '$rc_annual',
-    title: 'Yıllık Pro Paket',
-    subtitle: 'Aylık sadece ₺66 • İstediğiniz zaman iptal edin',
-    priceString: '₺799,99',
-    periodLabel: '/ yıl',
-    badge: 'EN POPÜLER • %75 TASARRUF',
-    savingsText: '%75 İndirimli',
-    highlight: true,
-  },
-  {
-    id: 'lifetime',
-    rcPackageIdentifier: '$rc_lifetime',
-    title: 'Ömür Boyu Sınırsız',
-    subtitle: 'Tek seferlik ödeme, sonsuza kadar sınırsız mülk & makbuz',
-    priceString: '₺1.499,99',
-    periodLabel: 'tek ödeme',
-    badge: 'EN İYİ DEĞER',
-  },
-];
+export const PRICING_PLANS_BY_LANG: Record<'en' | 'tr', PricingPlan[]> = {
+  tr: [
+    {
+      id: 'weekly',
+      rcPackageIdentifier: '$rc_weekly',
+      title: 'Haftalık Başlangıç',
+      subtitle: 'Kısa süreli deneme ve hızlı tahsilat',
+      priceString: '₺79,99',
+      periodLabel: '/ hafta',
+    },
+    {
+      id: 'monthly',
+      rcPackageIdentifier: '$rc_monthly',
+      title: 'Aylık Pro Paket',
+      subtitle: 'Düzenli mülk ve kiracı takibi için ideal',
+      priceString: '₺199,99',
+      periodLabel: '/ ay',
+      badge: 'ESNEK AYLIK PLAN',
+    },
+    {
+      id: 'annual',
+      rcPackageIdentifier: '$rc_annual',
+      title: 'Yıllık Pro Paket',
+      subtitle: 'Aylık sadece ₺66 • İstediğiniz zaman iptal edin',
+      priceString: '₺799,99',
+      periodLabel: '/ yıl',
+      badge: 'EN POPÜLER • %75 TASARRUF',
+      savingsText: '%75 İndirimli',
+      highlight: true,
+    },
+    {
+      id: 'lifetime',
+      rcPackageIdentifier: '$rc_lifetime',
+      title: 'Ömür Boyu Sınırsız',
+      subtitle: 'Tek seferlik ödeme, sonsuza kadar sınırsız mülk & makbuz',
+      priceString: '₺1.499,99',
+      periodLabel: 'tek ödeme',
+      badge: 'EN İYİ DEĞER',
+    },
+  ],
+  en: [
+    {
+      id: 'weekly',
+      rcPackageIdentifier: '$rc_weekly',
+      title: 'Weekly Starter',
+      subtitle: 'Short-term trial & fast receipts',
+      priceString: '$4.99',
+      periodLabel: '/ week',
+    },
+    {
+      id: 'monthly',
+      rcPackageIdentifier: '$rc_monthly',
+      title: 'Monthly Pro',
+      subtitle: 'Ideal for regular rent & tenant tracking',
+      priceString: '$9.99',
+      periodLabel: '/ mo',
+      badge: 'FLEXIBLE PLAN',
+    },
+    {
+      id: 'annual',
+      rcPackageIdentifier: '$rc_annual',
+      title: 'Annual Pro',
+      subtitle: 'Only $3.33/mo • Cancel anytime',
+      priceString: '$39.99',
+      periodLabel: '/ year',
+      badge: 'MOST POPULAR • 75% OFF',
+      savingsText: 'Save 75%',
+      highlight: true,
+    },
+    {
+      id: 'lifetime',
+      rcPackageIdentifier: '$rc_lifetime',
+      title: 'Lifetime Unlimited',
+      subtitle: 'One-time payment, unlimited properties & receipts forever',
+      priceString: '$79.99',
+      periodLabel: 'one-time',
+      badge: 'BEST VALUE',
+    },
+  ],
+};
+
+export function getPricingPlans(lang: 'en' | 'tr' = 'en'): PricingPlan[] {
+  return PRICING_PLANS_BY_LANG[lang] || PRICING_PLANS_BY_LANG.en;
+}
+
+export const PRICING_PLANS: PricingPlan[] = PRICING_PLANS_BY_LANG.en;
+
+export async function fetchLivePricingPlans(
+  lang: 'en' | 'tr' = 'en'
+): Promise<PricingPlan[]> {
+  return getPricingPlans(lang);
+}
 
 type Listener = (state: SubscriptionState) => void;
 const listeners = new Set<Listener>();
@@ -78,10 +131,6 @@ export function subscribeToSubscriptionChanges(listener: Listener): () => void {
 
 export function getCurrentSubscriptionState(): SubscriptionState {
   return currentSubscriptionState;
-}
-
-export async function fetchLivePricingPlans(): Promise<PricingPlan[]> {
-  return PRICING_PLANS;
 }
 
 export async function initializeRevenueCat(): Promise<SubscriptionState> {

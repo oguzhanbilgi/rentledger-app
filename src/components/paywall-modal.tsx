@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Check,
   Crown,
@@ -22,13 +22,15 @@ import {
 } from 'lucide-react-native';
 
 import {
+  getPricingPlans,
   PlanTierId,
-  PRICING_PLANS,
+  PricingPlan,
   purchaseSubscriptionPlan,
   restorePurchasesFromStore,
   SubscriptionState,
 } from '@/services/revenuecat';
 import { LegalDocType, LegalModal } from '@/components/legal-modal';
+import { AppLanguage, getI18nState, subscribeI18n } from '@/services/i18n';
 
 export interface PaywallModalProps {
   visible: boolean;
@@ -37,28 +39,102 @@ export interface PaywallModalProps {
   triggerReason?: string;
 }
 
-const PRO_BENEFITS = [
-  {
-    title: 'Sınırsız Mülk & Kiracı Kaydı',
-    desc: 'Tüm daire, dükkan ve kiracılarınızı sınırsız olarak ekleyin ve yönetin',
+const STRINGS = {
+  tr: {
+    proBadge: 'PRO ÜYELİK',
+    title: 'Tüm Pro Özelliklerin Kilidini Aç',
+    subtitle:
+      'Sınırsız kullanım, reklamsız ekran ve tüm profesyonel araçlarla kira yönetimini hızlandırın.',
+    ctaPrefix: "Pro'ya Geç —",
+    successTitle: 'Tebrikler! 🎉',
+    successMsg: (plan: string) => `${plan} aboneliğiniz başarıyla aktif edildi.`,
+    great: 'Harika',
+    errorTitle: 'Hata',
+    errorMsg: 'Satın alma işlemi sırasında bir sorun oluştu.',
+    restoreSuccessTitle: 'Satın Alımlar Geri Yüklendi',
+    restoreSuccessMsg: 'Mevcut Pro aboneliğiniz başarıyla doğrulandı ve aktif edildi.',
+    restoreNotFoundTitle: 'Kayıtlı Abonelik Bulunamadı',
+    restoreNotFoundMsg: 'Bu hesaba bağlı aktif bir Pro satın alımı bulunamadı.',
+    ok: 'Tamam',
+    guarantee: 'Google Play Güvencesi',
+    cancelAnytime: 'İstediğiniz Zaman İptal Edin',
+    restoreBtn: 'Satın Alımları Geri Yükle',
+    restoring: 'Geri Yükleniyor...',
+    terms: 'Kullanım Koşulları',
+    privacy: 'Gizlilik Politikası',
+    disclaimer:
+      'Abonelikler dönem bitiminden en az 24 saat önce iptal edilmediği sürece otomatik yenilenir. Mağaza hesap ayarlarınızdan dilediğiniz zaman iptal edebilirsiniz.',
+    benefits: [
+      {
+        title: 'Sınırsız Mülk & Kiracı Kaydı',
+        desc: 'Tüm daire, dükkan ve kiracılarınızı sınırsız olarak ekleyin ve yönetin',
+      },
+      {
+        title: 'Sınırsız Resmi PDF Kira Makbuzu',
+        desc: 'Kaşeli, imzalı ve tutarı yazıyla resmi tahsilat makbuzunu tek tıkla oluşturun',
+      },
+      {
+        title: 'Filigransız Kurumsal Çıktı & IBAN Anteti',
+        desc: 'Belgelerinizde kendi adınız, banka ve IBAN bilgileriniz yer alsın',
+      },
+      {
+        title: '%100 Reklamsız Hızlı Deneyim',
+        desc: 'Uygulama içindeki tüm reklamları kalıcı olarak kaldırın',
+      },
+      {
+        title: 'WhatsApp ile Otomatik Kira Takibi',
+        desc: 'Vadesi yaklaşan veya geciken kiracılara tek tuşla hatırlatma gönderin',
+      },
+    ],
   },
-  {
-    title: 'Sınırsız Resmi PDF Kira Makbuzu',
-    desc: 'Kaşeli, imzalı ve tutarı yazıyla resmi tahsilat makbuzunu tek tıkla oluşturun',
+  en: {
+    proBadge: 'PRO MEMBERSHIP',
+    title: 'Unlock All Pro Features',
+    subtitle:
+      'Unlimited properties, ad-free experience, and official PDF receipts to streamline your rentals.',
+    ctaPrefix: 'Upgrade to Pro —',
+    successTitle: 'Congratulations! 🎉',
+    successMsg: (plan: string) => `Your ${plan} subscription has been activated successfully.`,
+    great: 'Awesome',
+    errorTitle: 'Error',
+    errorMsg: 'An issue occurred during the purchase process.',
+    restoreSuccessTitle: 'Purchases Restored',
+    restoreSuccessMsg: 'Your active Pro subscription was verified and activated.',
+    restoreNotFoundTitle: 'No Subscription Found',
+    restoreNotFoundMsg: 'No active Pro subscription found for this account.',
+    ok: 'OK',
+    guarantee: 'Google Play Secured',
+    cancelAnytime: 'Cancel Anytime',
+    restoreBtn: 'Restore Purchases',
+    restoring: 'Restoring...',
+    terms: 'Terms of Use',
+    privacy: 'Privacy Policy',
+    disclaimer:
+      'Subscriptions renew automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in your Google Play Store account settings.',
+    benefits: [
+      {
+        title: 'Unlimited Properties & Tenants',
+        desc: 'Add and manage all your apartments, units, and tenants without limits',
+      },
+      {
+        title: 'Unlimited Official PDF Receipts',
+        desc: 'Generate signed & stamped payment receipts with amount-in-words instantly',
+      },
+      {
+        title: 'Custom Landlord Header & IBAN',
+        desc: 'Brand receipts with your own name, bank name, and IBAN details',
+      },
+      {
+        title: '100% Ad-Free Experience',
+        desc: 'Permanently remove all banner and interstitial ads across the app',
+      },
+      {
+        title: 'Instant WhatsApp Rent Reminders',
+        desc: 'Send rent due reminders to tenants with a single tap',
+      },
+    ],
   },
-  {
-    title: 'Filigransız Kurumsal Çıktı & IBAN Anteti',
-    desc: 'Belgelerinizde kendi adınız, banka ve IBAN bilgileriniz yer alsın',
-  },
-  {
-    title: '%100 Reklamsız Hızlı Deneyim',
-    desc: 'Uygulama içindeki tüm reklamları kalıcı olarak kaldırın',
-  },
-  {
-    title: 'WhatsApp ile Otomatik Kira Takibi',
-    desc: 'Vadesi yaklaşan veya geciken kiracılara tek tuşla hatırlatma gönderin',
-  },
-];
+};
 
 export function PaywallModal({
   visible,
@@ -66,24 +142,35 @@ export function PaywallModal({
   onPurchaseSuccess,
   triggerReason,
 }: PaywallModalProps) {
+  const insets = useSafeAreaInsets();
+  const [lang, setLang] = useState<AppLanguage>(getI18nState().lang);
   const [selectedPlan, setSelectedPlan] = useState<PlanTierId>('annual');
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [legalModalVisible, setLegalModalVisible] = useState(false);
   const [legalDocType, setLegalDocType] = useState<LegalDocType>('privacy');
 
+  useEffect(() => {
+    return subscribeI18n((state) => {
+      setLang(state.lang);
+    });
+  }, []);
+
+  const s = STRINGS[lang] || STRINGS.en;
+  const plans = getPricingPlans(lang);
+  const activePlanObj: PricingPlan =
+    plans.find((p) => p.id === selectedPlan) || plans[1] || plans[0];
+
   const handlePurchase = async () => {
     setLoading(true);
     try {
       const updatedState = await purchaseSubscriptionPlan(selectedPlan);
       onPurchaseSuccess?.(updatedState);
-      Alert.alert(
-        'Tebrikler! 🎉',
-        `${updatedState.activePlan} aboneliğiniz başarıyla aktif edildi.`,
-        [{ text: 'Harika', onPress: onClose }]
-      );
+      Alert.alert(s.successTitle, s.successMsg(updatedState.activePlan), [
+        { text: s.great, onPress: onClose },
+      ]);
     } catch {
-      Alert.alert('Hata', 'Satın alma işlemi sırasında bir sorun oluştu.');
+      Alert.alert(s.errorTitle, s.errorMsg);
     } finally {
       setLoading(false);
     }
@@ -95,16 +182,11 @@ export function PaywallModal({
       const { state, restored } = await restorePurchasesFromStore();
       onPurchaseSuccess?.(state);
       if (restored) {
-        Alert.alert(
-          'Satın Alımlar Geri Yüklendi',
-          'Mevcut Pro aboneliğiniz başarıyla doğrulandı ve aktif edildi.',
-          [{ text: 'Tamam', onPress: onClose }]
-        );
+        Alert.alert(s.restoreSuccessTitle, s.restoreSuccessMsg, [
+          { text: s.ok, onPress: onClose },
+        ]);
       } else {
-        Alert.alert(
-          'Kayıtlı Abonelik Bulunamadı',
-          'Bu hesaba bağlı aktif bir Pro satın alımı bulunamadı.'
-        );
+        Alert.alert(s.restoreNotFoundTitle, s.restoreNotFoundMsg);
       }
     } finally {
       setRestoring(false);
@@ -116,8 +198,7 @@ export function PaywallModal({
     setLegalModalVisible(true);
   };
 
-  const activePlanObj =
-    PRICING_PLANS.find((p) => p.id === selectedPlan) || PRICING_PLANS[1];
+  const safeBottomPadding = Math.max(insets.bottom, 24) + 16;
 
   return (
     <Modal
@@ -130,7 +211,7 @@ export function PaywallModal({
           <View className="flex-row items-center gap-1.5 bg-amber-500/15 px-3 py-1 rounded-full border border-amber-500/30">
             <Crown size={14} color="#fbbf24" />
             <Text className="text-xs font-bold text-amber-400">
-              PRO ÜYELİK
+              {s.proBadge}
             </Text>
           </View>
 
@@ -144,7 +225,7 @@ export function PaywallModal({
 
         <ScrollView
           className="flex-1 px-5"
-          contentContainerStyle={{ paddingBottom: 36 }}
+          contentContainerStyle={{ paddingBottom: safeBottomPadding }}
           showsVerticalScrollIndicator={false}>
           {triggerReason ? (
             <View className="mt-2 mb-3 px-3.5 py-2.5 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 flex-row items-center gap-2">
@@ -160,16 +241,15 @@ export function PaywallModal({
               <Crown size={32} color="#fbbf24" />
             </View>
             <Text className="text-2xl font-extrabold text-white text-center">
-              Tüm Pro Özelliklerin Kilidini Aç
+              {s.title}
             </Text>
             <Text className="text-xs text-slate-400 text-center mt-1.5 px-3 leading-relaxed">
-              Sınırsız kullanım, reklamsız ekran ve tüm profesyonel araçlarla
-              işinizi hızlandırın.
+              {s.subtitle}
             </Text>
           </View>
 
           <View className="rounded-3xl bg-[#111827] border border-slate-800/90 p-4 mb-5 gap-3">
-            {PRO_BENEFITS.map((benefit, idx) => (
+            {s.benefits.map((benefit, idx) => (
               <View key={idx} className="flex-row items-start gap-3">
                 <View className="w-6 h-6 rounded-full bg-emerald-500/20 items-center justify-center mt-0.5">
                   <Check size={14} color="#34d399" />
@@ -187,7 +267,7 @@ export function PaywallModal({
           </View>
 
           <View className="gap-3 mb-5">
-            {PRICING_PLANS.map((plan) => {
+            {plans.map((plan) => {
               const isSelected = selectedPlan === plan.id;
               return (
                 <Pressable
@@ -256,7 +336,7 @@ export function PaywallModal({
               <>
                 <Zap size={18} color="#fde047" />
                 <Text className="text-base font-extrabold text-white">
-                  Pro&apos;ya Geç — {activePlanObj.priceString}{' '}
+                  {s.ctaPrefix} {activePlanObj.priceString}{' '}
                   {activePlanObj.periodLabel}
                 </Text>
               </>
@@ -267,13 +347,13 @@ export function PaywallModal({
             <View className="flex-row items-center gap-1">
               <ShieldCheck size={14} color="#34d399" />
               <Text className="text-[11px] text-slate-400">
-                Google Play Güvencesi
+                {s.guarantee}
               </Text>
             </View>
             <View className="flex-row items-center gap-1">
               <Star size={14} color="#fbbf24" />
               <Text className="text-[11px] text-slate-400">
-                İstediğiniz Zaman İptal Edin
+                {s.cancelAnytime}
               </Text>
             </View>
           </View>
@@ -285,9 +365,7 @@ export function PaywallModal({
               className="flex-row items-center justify-center gap-1.5 py-1.5 px-4 rounded-xl bg-slate-900 border border-slate-800 mb-3 active:opacity-70">
               <RotateCcw size={13} color="#94a3b8" />
               <Text className="text-xs font-semibold text-slate-200">
-                {restoring
-                  ? 'Geri Yükleniyor...'
-                  : 'Satın Alımları Geri Yükle'}
+                {restoring ? s.restoring : s.restoreBtn}
               </Text>
             </Pressable>
 
@@ -296,7 +374,7 @@ export function PaywallModal({
                 onPress={() => handleOpenLegal('terms')}
                 className="active:opacity-70">
                 <Text className="text-xs font-medium text-slate-400 underline">
-                  Kullanım Koşulları
+                  {s.terms}
                 </Text>
               </Pressable>
 
@@ -306,7 +384,7 @@ export function PaywallModal({
                 onPress={() => handleOpenLegal('privacy')}
                 className="active:opacity-70">
                 <Text className="text-xs font-medium text-slate-400 underline">
-                  Gizlilik Politikası
+                  {s.privacy}
                 </Text>
               </Pressable>
             </View>
@@ -314,9 +392,7 @@ export function PaywallModal({
             <View className="flex-row items-center justify-center gap-1 px-2">
               <Lock size={11} color="#64748b" />
               <Text className="text-[10px] text-slate-500 text-center leading-tight flex-1">
-                Abonelikler dönem bitiminden en az 24 saat önce iptal edilmediği
-                sürece otomatik yenilenir. Mağaza hesap ayarlarınızdan
-                dilediğiniz zaman iptal edebilirsiniz.
+                {s.disclaimer}
               </Text>
             </View>
           </View>

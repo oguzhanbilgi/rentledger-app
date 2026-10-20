@@ -352,10 +352,16 @@ export function OnboardingModal({ visible, onFinish, lang }: OnboardingModalProp
                   </Text>
                   <View className="bg-slate-950/80 rounded-xl p-3 border border-slate-800 flex-row justify-between items-center">
                     <View>
-                      <Text className="text-xs font-bold text-white">Kadıköy Daire 4</Text>
-                      <Text className="text-[11px] text-slate-400">Mehmet Demir • Her ayın 15'i</Text>
+                      <Text className="text-xs font-bold text-white">
+                        {isTr ? 'Kadıköy Daire 4' : 'Sunset Apt #4'}
+                      </Text>
+                      <Text className="text-[11px] text-slate-400">
+                        {isTr ? 'Mehmet Demir • Her ayın 15\'i' : 'John Doe • 15th of every month'}
+                      </Text>
                     </View>
-                    <Text className="text-xs font-black text-emerald-400">$ 850 / ay</Text>
+                    <Text className="text-xs font-black text-emerald-400">
+                      {isTr ? '₺ 28.500 / ay' : '$ 850 / mo'}
+                    </Text>
                   </View>
                 </View>
               )}
@@ -376,9 +382,13 @@ export function OnboardingModal({ visible, onFinish, lang }: OnboardingModalProp
                   <View className="bg-slate-950/80 rounded-xl p-3 border border-slate-800 flex-row justify-between items-center">
                     <View className="flex-row items-center gap-2">
                       <View className="w-2 h-2 rounded-full bg-emerald-400" />
-                      <Text className="text-xs font-bold text-white">Ekim 2026 Kirası</Text>
+                      <Text className="text-xs font-bold text-white">
+                        {isTr ? 'Ekim 2026 Kirası' : 'October 2026 Rent'}
+                      </Text>
                     </View>
-                    <Text className="text-xs font-black text-emerald-400">✓ Tahsil Edildi</Text>
+                    <Text className="text-xs font-black text-emerald-400">
+                      {isTr ? '✓ Tahsil Edildi' : '✓ Paid & Collected'}
+                    </Text>
                   </View>
                 </View>
               )}
@@ -399,9 +409,13 @@ export function OnboardingModal({ visible, onFinish, lang }: OnboardingModalProp
                   <View className="bg-emerald-950/40 rounded-xl p-2.5 border border-emerald-500/40 flex-row items-center justify-between">
                     <View className="flex-row items-center gap-2">
                       <Send size={14} color="#34d399" />
-                      <Text className="text-xs font-bold text-white">Makbuz No: RNT-2026-001</Text>
+                      <Text className="text-xs font-bold text-white">
+                        {isTr ? 'Makbuz No: RNT-2026-001' : 'Receipt #RNT-2026-001'}
+                      </Text>
                     </View>
-                    <Text className="text-[11px] font-black text-emerald-300">WhatsApp'la Gönder</Text>
+                    <Text className="text-[11px] font-black text-emerald-300">
+                      {isTr ? "WhatsApp'la Gönder" : 'Send via WhatsApp'}
+                    </Text>
                   </View>
                 </View>
               )}
