@@ -18,8 +18,8 @@ export const CURRENCY_OPTIONS: Array<{
 ];
 
 let currentI18nState: I18nState = {
-  lang: 'tr',
-  currency: '₺',
+  lang: 'en',
+  currency: '$',
 };
 
 type I18nListener = (state: I18nState) => void;
@@ -44,7 +44,8 @@ export function subscribeI18n(listener: I18nListener): () => void {
 
 export function formatMoney(amount: number, currencySymbol?: string): string {
   const sym = currencySymbol || currentI18nState.currency;
-  const numStr = (amount || 0).toLocaleString('tr-TR', {
+  const locale = currentI18nState.lang === 'tr' ? 'tr-TR' : 'en-US';
+  const numStr = (amount || 0).toLocaleString(locale, {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   });
@@ -178,5 +179,5 @@ export const DICTIONARY = {
 
 export function t(key: keyof typeof DICTIONARY['tr'], lang?: AppLanguage): string {
   const activeLang = lang || currentI18nState.lang;
-  return DICTIONARY[activeLang]?.[key] || DICTIONARY['tr'][key] || String(key);
+  return DICTIONARY[activeLang]?.[key] || DICTIONARY['en']?.[key] || DICTIONARY['tr'][key] || String(key);
 }

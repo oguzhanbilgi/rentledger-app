@@ -380,6 +380,23 @@ async function setupStoreListingsAndRelease(token) {
 
   const listings = [
     {
+      lang: 'en-US',
+      title: 'RentLedger: Rent & Tenant Book',
+      shortDescription: 'Track rent payments, tenants, overdue alerts and generate official PDF receipts.',
+      fullDescription: `RentLedger Pro is the ultimate property management and rent tracking app designed for landlords, real estate investors, and property managers.
+
+Ditch complex spreadsheets and lost paper slips! Record rent collections in 15 seconds, generate official PDF Rent Payment Receipts, send 1-tap WhatsApp rent reminders with payment info, and keep total control over your rental cashflow.
+
+KEY FEATURES:
+• Track apartments, commercial shops, and houses in one place
+• 15-second rent collection entry (Bank Transfer, Cash, Card, Check)
+• Official A4 format rent payment receipts with bank & signature boxes
+• Overdue rent alerts and polite 1-tap WhatsApp rent reminder messages
+• Monthly collected rent, pending rent, and collection percentage analytics
+• Multi-currency support ($, ₺, €, £) & Bilingual (EN/TR) support
+• 100% Private & Offline-first with local SQLite storage.`,
+    },
+    {
       lang: 'tr-TR',
       title: 'RentLedger: Kira Takip Makbuz',
       shortDescription: 'Kiracı ve kira takibi, resmi PDF kira makbuzu ve 1 tıkla WhatsApp hatırlatma.',
@@ -397,23 +414,6 @@ Excel tabloları ve kaybolan kağıt makbuzlar yerine; 15 saniyede kira tahsilat
 • Aylık toplam tahsilat ve geciken alacak finansal dashboard özeti
 • Çoklu para birimi desteği (₺ TRY, $ USD, € EUR, £ GBP)
 • %100 Çevrimdışı (Offline) ve cihazınızda güvenli yerel SQLite veritabanı.`,
-    },
-    {
-      lang: 'en-US',
-      title: 'RentLedger: Rent & Tenant Book',
-      shortDescription: 'Track rent payments, tenants, overdue alerts and generate official PDF receipts.',
-      fullDescription: `RentLedger Pro is the ultimate property management and rent tracking app designed for landlords, real estate investors, and property managers.
-
-Ditch complex spreadsheets and lost paper slips! Record rent collections in 15 seconds, generate official PDF Rent Payment Receipts, send 1-tap WhatsApp rent reminders with payment info, and keep total control over your rental cashflow.
-
-KEY FEATURES:
-• Track apartments, commercial shops, and houses in one place
-• 15-second rent collection entry (Bank Transfer, Cash, Card, Check)
-• Official A4 format rent payment receipts with bank & signature boxes
-• Overdue rent alerts and polite 1-tap WhatsApp rent reminder messages
-• Monthly collected rent, pending rent, and collection percentage analytics
-• Multi-currency support (₺ TRY, $ USD, € EUR, £ GBP)
-• 100% Private & Offline-first with local SQLite storage.`,
     },
   ];
 
