@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { CheckCircle2, Wallet } from 'lucide-react-native';
 
@@ -49,35 +49,29 @@ export function NewPaymentModal({ visible, onClose, onSaved, tenants, properties
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [wasVisible, setWasVisible] = useState(visible);
+
   const activeTenants = tenants.filter((tenant) => tenant.status === 'active');
   const selectedTenant = activeTenants.find((tenant) => tenant.id === tenantId) ?? null;
+  const firstActive = activeTenants[0];
 
-  // Her açılışta formu sıfırla.
-  useEffect(() => {
-    if (!visible) return;
-    const first = tenants.find((tenant) => tenant.status === 'active');
-    setTenantId(first?.id ?? '');
-    setAmount(first ? String(first.rentAmount) : '');
-    setPeriodKey(toPeriodKey());
-    setDateKey(todayDateKey());
-    setMethod('bank_transfer');
-    setNotes('');
-    setSaving(false);
-    // Yalnızca açılışta çalışır; liste değişimi aşağıdaki efektte ele alınır.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
-
-  // Seçili kiracı silinmişse (bayat seçim) ilk aktif kiracıya geç.
-  useEffect(() => {
-    if (!visible || selectedTenant) return;
-    const first = tenants.find((tenant) => tenant.status === 'active');
-    if (first) {
-      setTenantId(first.id);
-      setAmount(String(first.rentAmount));
-    } else if (tenantId) {
-      setTenantId('');
+  // Her açılışta formu sıfırla ("prop değişince durumu ayarla" kalıbı; effect gerekmez).
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) {
+      setTenantId(firstActive?.id ?? '');
+      setAmount(firstActive ? String(firstActive.rentAmount) : '');
+      setPeriodKey(toPeriodKey());
+      setDateKey(todayDateKey());
+      setMethod('bank_transfer');
+      setNotes('');
+      setSaving(false);
     }
-  }, [visible, tenants, selectedTenant, tenantId]);
+  } else if (visible && !selectedTenant && (firstActive?.id ?? '') !== tenantId) {
+    // Seçili kiracı silinmişse (bayat seçim) ilk aktif kiracıya geç.
+    setTenantId(firstActive?.id ?? '');
+    if (firstActive) setAmount(String(firstActive.rentAmount));
+  }
 
   const selectTenant = (tenant: TenantRecord) => {
     triggerHaptic.selection();

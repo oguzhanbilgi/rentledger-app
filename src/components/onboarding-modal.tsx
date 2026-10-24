@@ -27,29 +27,23 @@ export type OnboardingStep =
 const CALIBRATION_MS = 3100;
 const ADVANCE_DELAY_MS = 180;
 
-export function OnboardingModal({
-  visible,
-  steps,
-  onFinish,
-}: {
-  visible: boolean;
+interface OnboardingProps {
   steps: OnboardingStep[];
   onFinish: (answers: Record<string, string>) => void;
-}) {
+}
+
+export function OnboardingModal({ visible, steps, onFinish }: OnboardingProps & { visible: boolean }) {
+  // Akış yalnızca görünürken bağlanır: her açılışta (ilk kurulum veya Ayarlar'dan
+  // tekrar) durum sıfırdan başlar, sıfırlamak için effect gerekmez.
+  return visible ? <OnboardingFlow steps={steps} onFinish={onFinish} /> : null;
+}
+
+function OnboardingFlow({ steps, onFinish }: OnboardingProps) {
   const { t } = useI18n();
   const colors = useThemeColors();
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const answersRef = useRef<Record<string, string>>({});
-
-  // Her açılışta (ilk kurulum veya Ayarlar'dan tekrar) baştan başla.
-  useEffect(() => {
-    if (visible) {
-      setIndex(0);
-      setAnswers({});
-      answersRef.current = {};
-    }
-  }, [visible]);
 
   const step = steps[index];
 
@@ -66,7 +60,7 @@ export function OnboardingModal({
   if (!step) return null;
 
   return (
-    <Modal visible={visible} animationType="fade" onRequestClose={() => setIndex((i) => Math.max(0, i - 1))}>
+    <Modal visible animationType="fade" onRequestClose={() => setIndex((i) => Math.max(0, i - 1))}>
       <SafeAreaView className="flex-1 bg-canvas dark:bg-canvas-dark" edges={['top', 'bottom']}>
         <View className="flex-row items-center justify-between px-5 pt-2">
           <Pressable
@@ -169,7 +163,8 @@ function CalibrationStep({
 }) {
   const { t } = useI18n();
   const colors = useThemeColors();
-  const progress = useRef(new Animated.Value(0)).current;
+  // Animated.Value render boyunca sabit kalmalı; ref yerine state (derleyici uyumlu).
+  const [progress] = useState(() => new Animated.Value(0));
   const [ticked, setTicked] = useState(0);
   const [finished, setFinished] = useState(false);
 

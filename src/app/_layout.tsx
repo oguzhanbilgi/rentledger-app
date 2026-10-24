@@ -1,6 +1,6 @@
 import '@/global.css';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -19,25 +19,33 @@ SplashScreen.setOptions({ duration: 250, fade: true });
 export default function RootLayout() {
   const { colorScheme } = useColorScheme();
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [attempt, setAttempt] = useState(0);
 
-  const boot = useCallback(() => {
-    setStatus('loading');
+  useEffect(() => {
+    let cancelled = false;
     bootstrapApp()
       .then(() =>
         // Eski tahsilatların kira dönemi anahtarını doldurur (idempotent, hata açılışı durdurmaz).
         prepareRentLedgerData().catch((error) => console.warn('[boot] Veri hazırlığı:', error))
       )
       .then(() => {
+        if (cancelled) return;
         setStatus('ready');
         startBackgroundServices();
       })
       .catch((error) => {
         console.error('[boot] Başlatma hatası:', error);
-        setStatus('error');
+        if (!cancelled) setStatus('error');
       });
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt]);
 
-  useEffect(boot, [boot]);
+  const retryBoot = () => {
+    setStatus('loading');
+    setAttempt((value) => value + 1);
+  };
 
   useEffect(() => {
     if (status !== 'loading') {
@@ -54,7 +62,7 @@ export default function RootLayout() {
       <View className="flex-1 items-center justify-center bg-canvas px-8 dark:bg-canvas-dark">
         <Text className="text-center text-lg font-bold text-ink dark:text-ink-dark">{t('errorTitle')}</Text>
         <Text className="mt-2 text-center text-muted dark:text-muted-dark">{t('tryAgainLater')}</Text>
-        <Button label={t('retry')} onPress={boot} className="mt-6 self-stretch" />
+        <Button label={t('retry')} onPress={retryBoot} className="mt-6 self-stretch" />
       </View>
     );
   }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Linking, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ExternalLink, X } from 'lucide-react-native';
@@ -27,10 +27,13 @@ export function LegalModal({
   const { t } = useI18n();
   const colors = useThemeColors();
   const [doc, setDoc] = useState<LegalDocType>(initialDoc);
+  const [wasVisible, setWasVisible] = useState(visible);
 
-  useEffect(() => {
+  // Her açılışta istenen sekmeden başla ("prop değişince durumu ayarla" kalıbı; effect gerekmez).
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
     if (visible) setDoc(initialDoc);
-  }, [visible, initialDoc]);
+  }
 
   const url = doc === 'privacy' ? factory.studio.privacyPolicyUrl : factory.studio.termsUrl;
   const body = t(doc === 'privacy' ? 'legalPrivacyBody' : 'legalTermsBody', brandParams());

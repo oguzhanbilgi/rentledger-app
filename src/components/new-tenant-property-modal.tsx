@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import { Building2, Plus } from 'lucide-react-native';
 
@@ -57,21 +57,25 @@ export function NewTenantPropertyModal({
   const [dueDay, setDueDay] = useState('1');
   const [currency, setCurrency] = useState<CurrencyCode>(() => getDefaultCurrency());
   const [saving, setSaving] = useState(false);
+  const [wasVisible, setWasVisible] = useState(visible);
 
-  useEffect(() => {
-    if (!visible) return;
-    setPropName('');
-    setPropAddress('');
-    setPropType('apartment');
-    setTenantName('');
-    setTenantPhone('');
-    setTenantId('');
-    setRentAmount('');
-    setDepositAmount('');
-    setDueDay('1');
-    setCurrency(getDefaultCurrency());
-    setSaving(false);
-  }, [visible]);
+  // Her açılışta boş formla başla ("prop değişince durumu ayarla" kalıbı; effect gerekmez).
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) {
+      setPropName('');
+      setPropAddress('');
+      setPropType('apartment');
+      setTenantName('');
+      setTenantPhone('');
+      setTenantId('');
+      setRentAmount('');
+      setDepositAmount('');
+      setDueDay('1');
+      setCurrency(getDefaultCurrency());
+      setSaving(false);
+    }
+  }
 
   const limitReached = !isPro && currentPropertyCount >= FREE_PROPERTY_LIMIT;
 

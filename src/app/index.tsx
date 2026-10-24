@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -86,6 +86,7 @@ export default function RentDashboardScreen() {
   const [now, setNow] = useState(() => new Date());
   const pendingExport = useRef<PaymentRecord | null>(null);
   // Adımlar yalnızca dil değişince yeniden kurulur (kalibrasyon zamanlayıcısı sıfırlanmasın).
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- adımlar t() ile güncel dili okur; dil değişince yeniden kurulmalı
   const onboardingSteps = useMemo(() => buildOnboardingSteps(), [language]);
 
   const reload = useCallback(async () => {
@@ -103,9 +104,12 @@ export default function RentDashboardScreen() {
     }, [reload])
   );
 
-  useEffect(() => {
-    if (replayToken > 0) setOnboardingVisible(true);
-  }, [replayToken]);
+  // Ayarlar'dan "sihirbazı tekrar başlat" istendi ("prop değişince durumu ayarla" kalıbı).
+  const [handledReplayToken, setHandledReplayToken] = useState(replayToken);
+  if (replayToken !== handledReplayToken) {
+    setHandledReplayToken(replayToken);
+    setOnboardingVisible(true);
+  }
 
   const onRefresh = async () => {
     setRefreshing(true);

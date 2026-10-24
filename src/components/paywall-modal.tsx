@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Check, Crown, RotateCcw, X } from 'lucide-react-native';
@@ -56,23 +56,37 @@ export function PaywallModal({ visible, onClose, reason, benefits }: PaywallModa
   const [restoring, setRestoring] = useState(false);
   const [legalDoc, setLegalDoc] = useState<LegalDocType | null>(null);
 
-  const fetchPlans = useCallback(async () => {
-    setLoad({ status: 'loading' });
-    const result = await loadPaywallPlans();
-    if (result.status === 'ok') {
-      setLoad({ status: 'ready', plans: result.plans, mode: result.mode });
-      const preferred = result.plans.find((plan) => plan.isBestValue) ?? result.plans[0];
-      setSelectedId(preferred?.id ?? null);
-    } else {
-      setLoad({ status: 'unavailable' });
-    }
-  }, []);
+  const [reloadToken, setReloadToken] = useState(0);
+  const [wasVisible, setWasVisible] = useState(visible);
+
+  // Her açılışta planları baştan yükle ("prop değişince durumu ayarla" kalıbı).
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) setLoad({ status: 'loading' });
+  }
 
   useEffect(() => {
-    if (visible) {
-      void fetchPlans();
-    }
-  }, [visible, fetchPlans]);
+    if (!visible) return;
+    let cancelled = false;
+    void loadPaywallPlans().then((result) => {
+      if (cancelled) return;
+      if (result.status === 'ok') {
+        setLoad({ status: 'ready', plans: result.plans, mode: result.mode });
+        const preferred = result.plans.find((plan) => plan.isBestValue) ?? result.plans[0];
+        setSelectedId(preferred?.id ?? null);
+      } else {
+        setLoad({ status: 'unavailable' });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, reloadToken]);
+
+  const retryPlans = () => {
+    setLoad({ status: 'loading' });
+    setReloadToken((token) => token + 1);
+  };
 
   const selectedPlan =
     load.status === 'ready' ? load.plans.find((plan) => plan.id === selectedId) ?? null : null;
@@ -181,7 +195,7 @@ export function PaywallModal({ visible, onClose, reason, benefits }: PaywallModa
                 <Text className="text-center text-sm text-muted dark:text-muted-dark">
                   {t('paywallUnavailable')}
                 </Text>
-                <Button label={t('retry')} variant="secondary" onPress={fetchPlans} className="mt-4 self-stretch" />
+                <Button label={t('retry')} variant="secondary" onPress={retryPlans} className="mt-4 self-stretch" />
               </View>
             ) : null}
 

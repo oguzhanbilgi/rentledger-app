@@ -1,4 +1,4 @@
-﻿import type { ConfigContext, ExpoConfig } from 'expo/config';
+import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 import factory from './factory.config.js';
 
