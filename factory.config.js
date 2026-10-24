@@ -48,9 +48,9 @@ const factory = {
 
   monetization: {
     revenueCat: {
-      // RevenueCat → RentLedger Pro projesi → API keys → "Public app-specific API key" (goog_…).
-      // Eski koddaki anahtar başka bir uygulamaya aitti; RentLedger'ın kendi anahtarı girilmeli.
-      androidApiKey: '',
+      // RevenueCat → VeloQuote projesi → RentLedger Android uygulaması → "Public app-specific API key".
+      // (RentLedger, VeloQuote ve Bill of Sale aynı RevenueCat projesini ve pro_access yetkisini paylaşır.)
+      androidApiKey: 'goog_vOvioGuqvGayMahpLooYhtmqOrQ',
       iosApiKey: '',
       entitlementId: 'pro_access',
     },
