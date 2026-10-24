@@ -113,15 +113,22 @@ if (q.freeUnits < 0 || q.maxShareBonusesPerDay > 3) warn('Kota/paylaşım sını
 const DEFAULT_ASSET_HASHES = new Set([
   '7a667804bb80a6a424a5daf18a2599c4f32237cf06fe78fc0de45dbb09e0eccf', // Expo varsayılan icon/splash
   '9e3d0315a33c6799de601dd34cd8bf8cc3a8d16f3bf75592baec2ceb7240b391', // Expo varsayılan adaptive foreground
+  'fb139c2dee362ebf2070e23b96da6fc0d43f8492de38b8af1fd7223e19b5861d', // Expo varsayılan adaptive background (ızgara)
+  '6371fc2c12e33ad2215a86c281db3d682a81bebe7c957a842c13b8bf00cceb83', // Expo varsayılan monochrome (Expo logosu)
 ]);
-for (const asset of ['icon.png', 'splash-icon.png', 'android-icon-foreground.png']) {
+const assetHash = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+for (const asset of ['icon.png', 'splash-icon.png', 'android-icon-foreground.png', 'android-icon-background.png']) {
   const file = path.join(root, 'assets', 'images', asset);
   if (!fs.existsSync(file)) {
     fail(`assets/images/${asset} eksik.`);
     continue;
   }
-  const hash = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-  if (DEFAULT_ASSET_HASHES.has(hash)) fail(`assets/images/${asset} hâlâ Expo varsayılan görseli — uygulamanın kendi ikonunu koyun.`);
+  if (DEFAULT_ASSET_HASHES.has(assetHash(file))) fail(`assets/images/${asset} hâlâ Expo varsayılan görseli — uygulamanın kendi ikonunu koyun.`);
+}
+// İsteğe bağlı katman: varsa Expo varsayılanı olmamalı (temalı ikonda Expo logosu görünür).
+const monochrome = path.join(root, 'assets', 'images', 'android-icon-monochrome.png');
+if (fs.existsSync(monochrome) && DEFAULT_ASSET_HASHES.has(assetHash(monochrome))) {
+  fail('assets/images/android-icon-monochrome.png Expo varsayılanı — kendi glifinizi koyun veya dosyayı silin.');
 }
 
 // --- Depoya girecek dosyalarda gizli anahtar taraması ---

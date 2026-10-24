@@ -48,7 +48,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         backgroundColor: brand.adaptiveIconBackground,
         foregroundImage: './assets/images/android-icon-foreground.png',
         backgroundImage: './assets/images/android-icon-background.png',
-        monochromeImage: './assets/images/android-icon-monochrome.png',
+        // Temalı ikon (Android 13+): uygulamaya özel tek renkli glif çizildiğinde
+        // monochromeImage olarak ekleyin. Expo varsayılanı (Expo logosu) kullanılmaz.
       },
       predictiveBackGestureEnabled: false,
     },

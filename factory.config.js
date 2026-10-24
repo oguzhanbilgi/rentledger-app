@@ -30,7 +30,7 @@ const factory = {
 
   brand: {
     splashBackground: '#070B14',
-    adaptiveIconBackground: '#0F172A',
+    adaptiveIconBackground: '#083436',
   },
 
   studio: {
