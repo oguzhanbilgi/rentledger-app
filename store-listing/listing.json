@@ -65,6 +65,122 @@
           "description": "Tek seferlik ödeme: abonelik olmadan sınırsız PDF kira makbuzu ve mülk, reklamsız."
         }
       }
+    },
+    "de-DE": {
+      "title": "RentLedger: Miete & Mieter",
+      "shortDescription": "Mieten & Mieter verwalten, WhatsApp-Erinnerungen und PDF-Mietquittungen.",
+      "fullDescription": "RentLedger Pro ist ein einfaches Mietbuch für Vermieter und kleine Hausverwaltungen. Erfassen Sie Mieter und Mietzahlungen, sehen Sie fällige Mieten, senden Sie WhatsApp-Erinnerungen und teilen Sie in Sekunden eine PDF-Mietquittung.\n\nOBJEKTE & MIETER\n• Wohnungen, Häuser, Läden, Büros und Lagerräume anlegen.\n• Mietername, Telefon, optionale Ausweis- oder Steuernummer, Monatsmiete, Kaution und Fälligkeitstag.\n• Eigene Währung pro Mieter: TRY, USD, EUR oder GBP.\n• Mieter mit einem Tippen anrufen oder einen WhatsApp-Chat starten.\n\nMIETZAHLUNGEN\n• Betrag, Mietzeitraum, Zahlungsdatum und Zahlungsart (Überweisung, bar, Kreditkarte) erfassen.\n• Optionale Notiz (z. B. „inkl. Nebenkosten“).\n• Fortlaufende Quittungsnummer pro Jahr (RL-2026-0001); Nummern gelöschter Zahlungen werden nie wiederverwendet.\n\nPDF-MIETQUITTUNGEN\n• A4-Quittung mit Quittungsnummer, Zahlungsdatum und -art, Vermieter- und Mieterdaten sowie IBAN.\n• Betrag in Worten (auf Englisch oder Türkisch, mit Cent).\n• Unterschriftszeilen für Mieter und Vermieter.\n• Teilen per WhatsApp, E-Mail oder einer anderen App.\n• Die Quittungen erstellt der Vermieter selbst; sie ersetzen keine steuerlichen Belege.\n\nFÄLLIGKEITEN & WHATSAPP-ERINNERUNGEN\n• In den nächsten 5 Tagen fällige und überfällige Mieten des Monats auf dem Dashboard.\n• Fertige WhatsApp-Erinnerungen mit Ihren Zahlungsdaten (Bank, IBAN).\n• Zahlungsbestätigung an den Mieter, nachdem Sie eine Zahlung erfasst haben.\n\nMONATSÜBERSICHT\n• Erwartete, eingegangene und offene Mieten des Monats — getrennt nach Währung.\n\nDATENSCHUTZ\n• Kein Konto. Ihre Daten werden nur auf Ihrem Gerät gespeichert.\n\nSPRACHE\n• Die App-Oberfläche ist auf Englisch und Türkisch verfügbar. Dunkles, helles oder System-Design.\n\nKOSTENLOS UND PRO\n• Kostenlos: 3 PDF-Quittungen (weitere durch ein kurzes Video), bis zu 2 Objekte, mit Werbung.\n• Pro: unbegrenzte PDF-Quittungen, Objekte und Mieter, keine Werbung und kein App-Link auf Quittungen oder Nachrichten. Abonnements verlängern sich automatisch, bis sie in Google Play gekündigt werden.\n\nSupport: {supportEmail}",
+      "releaseNotes": "{appName} {version}: Mietbuch mit PDF-Mietquittungen, WhatsApp-Erinnerungen, Währung pro Mieter und neuem Einrichtungsassistenten.",
+      "subscriptionBenefits": [
+        "Unbegrenzte PDF-Mietquittungen",
+        "Unbegrenzte Objekte und Mieter",
+        "Keine Werbung"
+      ],
+      "products": {
+        "weekly": {
+          "title": "{appName} Pro — Wöchentlich",
+          "description": "Unbegrenzte Quittungen und Objekte, keine Werbung. Verlängert sich wöchentlich."
+        },
+        "monthly": {
+          "title": "{appName} Pro — Monatlich",
+          "description": "Unbegrenzte Quittungen und Objekte, keine Werbung. Verlängert sich monatlich."
+        },
+        "annual": {
+          "title": "{appName} Pro — Jährlich",
+          "description": "Unbegrenzte Quittungen und Objekte, keine Werbung. Verlängert sich jährlich."
+        },
+        "lifetime": {
+          "title": "{appName} Pro — Lebenslang",
+          "description": "Einmalkauf: unbegrenzte PDF-Mietquittungen und Objekte, keine Werbung, ohne Abonnement."
+        }
+      }
+    },
+    "es-419": {
+      "title": "RentLedger: Control de Rentas",
+      "shortDescription": "Rentas e inquilinos, recordatorios por WhatsApp y recibos de renta en PDF.",
+      "fullDescription": "RentLedger Pro es un libro de rentas sencillo para arrendadores y pequeños administradores. Registra inquilinos y pagos, mira qué rentas vencen, envía recordatorios por WhatsApp y comparte un recibo de renta en PDF en segundos.\n\nPROPIEDADES E INQUILINOS\n• Guarda departamentos, casas, locales, oficinas y bodegas.\n• Nombre del inquilino, teléfono, número de identificación o fiscal opcional, renta mensual, depósito y día de pago.\n• Moneda por inquilino: TRY, USD, EUR o GBP.\n• Llama a un inquilino o abre un chat de WhatsApp con un toque.\n\nPAGOS DE RENTA\n• Registra monto, periodo, fecha y forma de pago (transferencia, efectivo, tarjeta de crédito).\n• Nota opcional (por ejemplo, \"incluye mantenimiento\").\n• Cada pago recibe un número de recibo consecutivo por año (RL-2026-0001); los números de pagos borrados nunca se reutilizan.\n\nRECIBOS DE RENTA EN PDF\n• Recibo A4 con número, fecha y forma de pago, datos del arrendador y del inquilino e IBAN.\n• Monto en letras (en inglés o turco, con centavos).\n• Líneas de firma para inquilino y arrendador.\n• Compártelo por WhatsApp, correo o cualquier app.\n• El arrendador prepara los recibos; no sustituyen comprobantes fiscales.\n\nVENCIMIENTOS Y RECORDATORIOS POR WHATSAPP\n• Rentas que vencen en los próximos 5 días y rentas atrasadas del mes en el panel.\n• Recordatorios de WhatsApp listos con tus datos de pago (banco, IBAN).\n• Mensaje de confirmación al inquilino después de registrar un pago.\n\nRESUMEN MENSUAL\n• Renta esperada, cobrada y pendiente del mes, separada por moneda.\n\nPRIVACIDAD\n• Sin cuenta. Tus datos se guardan solo en tu dispositivo.\n\nIDIOMA\n• La interfaz de la app está en inglés y turco. Tema oscuro, claro o del sistema.\n\nGRATIS Y PRO\n• Gratis: 3 recibos en PDF (gana más viendo un video corto), hasta 2 propiedades, con anuncios.\n• Pro: recibos en PDF, propiedades e inquilinos ilimitados, sin anuncios y sin enlace de la app en recibos o mensajes. Las suscripciones se renuevan automáticamente hasta que las canceles en Google Play.\n\nSoporte: {supportEmail}",
+      "releaseNotes": "{appName} {version}: libro de rentas con recibos en PDF, recordatorios por WhatsApp, moneda por inquilino y nuevo asistente de configuración.",
+      "subscriptionBenefits": [
+        "Recibos de renta en PDF ilimitados",
+        "Propiedades e inquilinos ilimitados",
+        "Sin anuncios"
+      ],
+      "products": {
+        "weekly": {
+          "title": "{appName} Pro — Semanal",
+          "description": "Recibos y propiedades ilimitados, sin anuncios. Se renueva cada semana."
+        },
+        "monthly": {
+          "title": "{appName} Pro — Mensual",
+          "description": "Recibos y propiedades ilimitados, sin anuncios. Se renueva cada mes."
+        },
+        "annual": {
+          "title": "{appName} Pro — Anual",
+          "description": "Recibos y propiedades ilimitados, sin anuncios. Se renueva cada año."
+        },
+        "lifetime": {
+          "title": "{appName} Pro — De por vida",
+          "description": "Pago único: recibos en PDF y propiedades ilimitados, sin anuncios y sin suscripción."
+        }
+      }
+    },
+    "fr-FR": {
+      "title": "RentLedger: Suivi des Loyers",
+      "shortDescription": "Loyers et locataires, rappels WhatsApp et reçus de loyer en PDF.",
+      "fullDescription": "RentLedger Pro est un registre de loyers simple pour les propriétaires et petits gestionnaires. Enregistrez locataires et paiements, voyez les loyers à échéance, envoyez des rappels WhatsApp et partagez un reçu de loyer PDF en quelques secondes.\n\nBIENS ET LOCATAIRES\n• Enregistrez appartements, maisons, commerces, bureaux et box de stockage.\n• Nom du locataire, téléphone, numéro d'identité ou fiscal facultatif, loyer mensuel, dépôt de garantie et jour d'échéance.\n• Une devise par locataire : TRY, USD, EUR ou GBP.\n• Appelez un locataire ou ouvrez une discussion WhatsApp en un geste.\n\nPAIEMENTS DE LOYER\n• Montant, période, date et mode de paiement (virement, espèces, carte bancaire).\n• Note facultative (par ex. « charges comprises »).\n• Chaque paiement reçoit un numéro de reçu séquentiel par année (RL-2026-0001) ; les numéros des paiements supprimés ne sont jamais réutilisés.\n\nREÇUS DE LOYER PDF\n• Reçu A4 avec numéro, date et mode de paiement, coordonnées du propriétaire et du locataire, IBAN.\n• Montant en toutes lettres (en anglais ou en turc, centimes compris).\n• Lignes de signature pour le locataire et le propriétaire.\n• Partage par WhatsApp, e-mail ou toute autre app.\n• Les reçus sont établis par le propriétaire et ne remplacent pas les documents fiscaux.\n\nÉCHÉANCES ET RAPPELS WHATSAPP\n• Loyers à échéance dans les 5 prochains jours et loyers en retard du mois sur le tableau de bord.\n• Rappels WhatsApp prêts à envoyer avec vos coordonnées bancaires (banque, IBAN).\n• Message de confirmation au locataire après l'enregistrement d'un paiement.\n\nRÉCAPITULATIF MENSUEL\n• Loyers attendus, encaissés et restants du mois, par devise.\n\nCONFIDENTIALITÉ\n• Aucun compte. Vos données restent uniquement sur votre appareil.\n\nLANGUE\n• L'interface de l'app est en anglais et en turc. Thème sombre, clair ou système.\n\nGRATUIT ET PRO\n• Gratuit : 3 reçus PDF (d'autres en regardant une courte vidéo), jusqu'à 2 biens, avec publicités.\n• Pro : reçus PDF, biens et locataires illimités, sans publicité et sans lien vers l'app sur les reçus ou messages. Les abonnements se renouvellent automatiquement jusqu'à leur résiliation dans Google Play.\n\nAssistance : {supportEmail}",
+      "releaseNotes": "{appName} {version} : registre de loyers avec reçus PDF, rappels WhatsApp, devise par locataire et nouvel assistant de configuration.",
+      "subscriptionBenefits": [
+        "Reçus de loyer PDF illimités",
+        "Biens et locataires illimités",
+        "Sans publicité"
+      ],
+      "products": {
+        "weekly": {
+          "title": "{appName} Pro — Hebdomadaire",
+          "description": "Reçus et biens illimités, sans publicité. Renouvelé chaque semaine."
+        },
+        "monthly": {
+          "title": "{appName} Pro — Mensuel",
+          "description": "Reçus et biens illimités, sans publicité. Renouvelé chaque mois."
+        },
+        "annual": {
+          "title": "{appName} Pro — Annuel",
+          "description": "Reçus et biens illimités, sans publicité. Renouvelé chaque année."
+        },
+        "lifetime": {
+          "title": "{appName} Pro — À vie",
+          "description": "Achat unique : reçus PDF et biens illimités, sans publicité et sans abonnement."
+        }
+      }
+    },
+    "pt-BR": {
+      "title": "RentLedger: Aluguel e Recibos",
+      "shortDescription": "Aluguéis e inquilinos, lembretes no WhatsApp e recibos de aluguel em PDF.",
+      "fullDescription": "RentLedger Pro é um livro de aluguéis simples para proprietários e pequenos administradores. Registre inquilinos e pagamentos, veja quais aluguéis vencem, envie lembretes pelo WhatsApp e compartilhe um recibo de aluguel em PDF em segundos.\n\nIMÓVEIS E INQUILINOS\n• Cadastre apartamentos, casas, lojas, escritórios e depósitos.\n• Nome do inquilino, telefone, CPF ou documento opcional, aluguel mensal, caução e dia de vencimento.\n• Moeda por inquilino: TRY, USD, EUR ou GBP.\n• Ligue para o inquilino ou abra uma conversa no WhatsApp com um toque.\n\nPAGAMENTOS DE ALUGUEL\n• Registre valor, período, data e forma de pagamento (transferência, dinheiro, cartão de crédito).\n• Observação opcional (por exemplo, \"inclui condomínio\").\n• Cada pagamento recebe um número de recibo sequencial por ano (RL-2026-0001); números de pagamentos excluídos nunca são reutilizados.\n\nRECIBOS DE ALUGUEL EM PDF\n• Recibo A4 com número, data e forma de pagamento, dados do proprietário e do inquilino e IBAN.\n• Valor por extenso (em inglês ou turco, com centavos).\n• Linhas de assinatura para inquilino e proprietário.\n• Compartilhe pelo WhatsApp, e-mail ou qualquer app.\n• Os recibos são emitidos pelo proprietário e não substituem documentos fiscais.\n\nVENCIMENTOS E LEMBRETES NO WHATSAPP\n• Aluguéis que vencem nos próximos 5 dias e aluguéis atrasados do mês no painel.\n• Lembretes de WhatsApp prontos com seus dados de pagamento (banco, IBAN).\n• Mensagem de confirmação ao inquilino depois de registrar um pagamento.\n\nRESUMO MENSAL\n• Aluguel previsto, recebido e pendente do mês, separado por moeda.\n\nPRIVACIDADE\n• Sem conta. Seus dados ficam somente no seu aparelho.\n\nIDIOMA\n• A interface do app está em inglês e turco. Tema escuro, claro ou do sistema.\n\nGRÁTIS E PRO\n• Grátis: 3 recibos em PDF (ganhe mais assistindo a um vídeo curto), até 2 imóveis, com anúncios.\n• Pro: recibos em PDF, imóveis e inquilinos ilimitados, sem anúncios e sem link do app nos recibos ou mensagens. As assinaturas são renovadas automaticamente até serem canceladas no Google Play.\n\nSuporte: {supportEmail}",
+      "releaseNotes": "{appName} {version}: livro de aluguéis com recibos em PDF, lembretes no WhatsApp, moeda por inquilino e novo assistente de configuração.",
+      "subscriptionBenefits": [
+        "Recibos de aluguel em PDF ilimitados",
+        "Imóveis e inquilinos ilimitados",
+        "Sem anúncios"
+      ],
+      "products": {
+        "weekly": {
+          "title": "{appName} Pro — Semanal",
+          "description": "Recibos e imóveis ilimitados, sem anúncios. Renova toda semana."
+        },
+        "monthly": {
+          "title": "{appName} Pro — Mensal",
+          "description": "Recibos e imóveis ilimitados, sem anúncios. Renova todo mês."
+        },
+        "annual": {
+          "title": "{appName} Pro — Anual",
+          "description": "Recibos e imóveis ilimitados, sem anúncios. Renova todo ano."
+        },
+        "lifetime": {
+          "title": "{appName} Pro — Vitalício",
+          "description": "Compra única: recibos em PDF e imóveis ilimitados, sem anúncios e sem assinatura."
+        }
+      }
     }
   },
   "pricing": {
