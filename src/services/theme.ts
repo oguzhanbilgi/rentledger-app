@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { Appearance, Platform } from 'react-native';
 import { colorScheme } from 'nativewind';
 
 import { getPref, setPref } from '@/services/database';
@@ -15,9 +16,30 @@ const DEFAULT_THEME: ThemePreference = 'system';
 type Listener = () => void;
 const listeners = new Set<Listener>();
 let currentPreference: ThemePreference = DEFAULT_THEME;
+let webAppearanceSubscribed = false;
 
 function isThemePreference(value: string | null): value is ThemePreference {
   return value === 'dark' || value === 'light' || value === 'system';
+}
+
+/**
+ * Web'de `darkMode: 'class'` ile "system" seçimi `.dark` sınıfını eklemez; kancanın
+ * bildirdiği tema ile görünen sınıflar ayrışır. Web'de sistemi açık değere çözüp izleriz.
+ */
+function applyScheme(preference: ThemePreference): void {
+  if (Platform.OS !== 'web' || preference !== 'system') {
+    colorScheme.set(preference);
+    return;
+  }
+  colorScheme.set(Appearance.getColorScheme() === 'dark' ? 'dark' : 'light');
+  if (!webAppearanceSubscribed) {
+    webAppearanceSubscribed = true;
+    Appearance.addChangeListener(({ colorScheme: next }) => {
+      if (currentPreference === 'system') {
+        colorScheme.set(next === 'dark' ? 'dark' : 'light');
+      }
+    });
+  }
 }
 
 /**
@@ -27,7 +49,7 @@ function isThemePreference(value: string | null): value is ThemePreference {
 export function initTheme(): ThemePreference {
   const saved = getPref(THEME_PREF);
   currentPreference = isThemePreference(saved) ? saved : DEFAULT_THEME;
-  colorScheme.set(currentPreference);
+  applyScheme(currentPreference);
   listeners.forEach((listener) => listener());
   return currentPreference;
 }
@@ -38,7 +60,7 @@ export function getThemePreference(): ThemePreference {
 
 export async function setThemePreference(preference: ThemePreference): Promise<void> {
   currentPreference = preference;
-  colorScheme.set(preference);
+  applyScheme(preference);
   listeners.forEach((listener) => listener());
   await setPref(THEME_PREF, preference);
 }
