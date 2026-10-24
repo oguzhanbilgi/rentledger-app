@@ -116,12 +116,41 @@ export const MIGRATIONS: Migration[] = [
 /** "Verileri sıfırla" ile temizlenen kullanıcı tabloları. */
 export const USER_DATA_TABLES = ['payments', 'tenants', 'properties', 'landlord_profile'] as const;
 
+export interface CounterTable {
+  table: string;
+  /** Birincil anahtar sütunu (ör. `year`). */
+  key: string;
+  /** Artan sayaç sütunu (ör. `last_value`). */
+  counter: string;
+}
+
+/**
+ * Yedeğe giren ama "verileri sıfırla" ile SİLİNMEYEN sayaç tabloları (ör. belge numarası
+ * sayaçları). Geri yüklemede sayaç asla küçülmez: MAX(cihazdaki, yedekteki).
+ */
+export const BACKUP_COUNTER_TABLES: readonly CounterTable[] = [];
+
+/**
+ * Yedeğe giren sayaç tercihleri (ör. makbuz numarası). Bu önekler PROTECTED_PREF_PREFIXES
+ * içinde de olmalı (sıfırlamada silinmez); geri yüklemede büyük olan değer kalır.
+ */
+const COUNTER_PREF_PREFIXES: string[] = ['receipt_seq_'];
+
 /**
  * Sıfırlamada KORUNAN tercih önekleri: ücretsiz kota sayaçları ve bonus
  * geçmişi silinirse kullanıcı "verileri sıfırla" ile sınırsız hak kazanır.
  * `receipt_seq_`: makbuz numaraları sıfırlamadan sonra bile tekrar kullanılmaz.
+ * Aynı nedenle bu tercihler (sayaç tercihleri hariç) yedeğe yazılmaz ve yedekten okunmaz.
  */
 const PROTECTED_PREF_PREFIXES = ['quota_', 'bonus_', 'receipt_seq_'];
+
+export function isProtectedPref(key: string): boolean {
+  return PROTECTED_PREF_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
+
+export function isCounterPref(key: string): boolean {
+  return COUNTER_PREF_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
 
 let db: SQLite.SQLiteDatabase | null = null;
 let initPromise: Promise<void> | null = null;
@@ -141,7 +170,11 @@ async function openAndMigrate(): Promise<void> {
   const database = await SQLite.openDatabaseAsync(factory.storage.databaseName);
   await database.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   await runMigrations(database);
+  await loadPrefCache(database);
+  db = database;
+}
 
+async function loadPrefCache(database: SQLite.SQLiteDatabase): Promise<void> {
   const rows = await database.getAllAsync<{ key: string; value: string }>(
     'SELECT key, value FROM kv_preferences'
   );
@@ -149,7 +182,17 @@ async function openAndMigrate(): Promise<void> {
   for (const row of rows) {
     prefCache.set(row.key, row.value);
   }
-  db = database;
+}
+
+/** Tercihler veritabanında toplu değiştiğinde (yedekten geri yükleme) önbelleği tazeler. */
+export async function reloadPreferences(): Promise<void> {
+  await loadPrefCache(getDb());
+}
+
+/** Uygulanmış son göç adımı (`PRAGMA user_version`). */
+export async function getSchemaVersion(): Promise<number> {
+  const row = await getDb().getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+  return row?.user_version ?? 0;
 }
 
 async function runMigrations(database: SQLite.SQLiteDatabase): Promise<void> {
@@ -218,15 +261,13 @@ export async function resetLocalData(): Promise<void> {
     for (const table of USER_DATA_TABLES) {
       await database.execAsync(`DELETE FROM ${table}`);
     }
-    const keys = [...prefCache.keys()].filter(
-      (key) => !PROTECTED_PREF_PREFIXES.some((prefix) => key.startsWith(prefix))
-    );
+    const keys = [...prefCache.keys()].filter((key) => !isProtectedPref(key));
     for (const key of keys) {
       await database.runAsync('DELETE FROM kv_preferences WHERE key = ?', key);
     }
   });
   for (const key of [...prefCache.keys()]) {
-    if (!PROTECTED_PREF_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+    if (!isProtectedPref(key)) {
       prefCache.delete(key);
     }
   }

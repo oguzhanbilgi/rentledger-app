@@ -11,9 +11,18 @@ export interface Migration {
 
 export const MIGRATIONS: Migration[] = [];
 export const USER_DATA_TABLES = [] as const;
+export const BACKUP_COUNTER_TABLES: readonly { table: string; key: string; counter: string }[] = [];
 
 const PREFIX = 'factory_pref:';
 const PROTECTED_PREF_PREFIXES = ['quota_', 'bonus_', 'receipt_seq_'];
+
+export function isProtectedPref(key: string): boolean {
+  return PROTECTED_PREF_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
+
+export function isCounterPref(_key: string): boolean {
+  return false;
+}
 const prefCache = new Map<string, string>();
 let initialized = false;
 
@@ -64,9 +73,15 @@ export async function getPreference(key: string): Promise<string | null> {
 
 export const setPreference = setPref;
 
+export async function reloadPreferences(): Promise<void> {}
+
+export async function getSchemaVersion(): Promise<number> {
+  return 0;
+}
+
 export async function resetLocalData(): Promise<void> {
   for (const key of [...prefCache.keys()]) {
-    if (!PROTECTED_PREF_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+    if (!isProtectedPref(key)) {
       await removePref(key);
     }
   }

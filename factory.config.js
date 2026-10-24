@@ -66,12 +66,14 @@ const factory = {
     quota: {
       freeUnits: 3,
       rewardedAdBonus: 1,
-      maxRewardedAdBonusesPerDay: 3,
+      // Günde 1: ödüllü video aboneliğin yerini tutmasın (düzenli kullanıcı Pro'ya geçer).
+      maxRewardedAdBonusesPerDay: 1,
       shareBonus: 1,
       maxShareBonusesPerDay: 1,
       maxShareBonusesTotal: 3,
     },
 
+    // Uygulama bazında karar: doğal kırılma anında, sıklık sınırıyla açık.
     interstitial: {
       enabled: true,
       minIntervalSeconds: 180,

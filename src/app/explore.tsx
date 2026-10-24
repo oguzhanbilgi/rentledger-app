@@ -17,6 +17,7 @@ import {
   UserCheck,
 } from 'lucide-react-native';
 
+import { DataToolRows, type CsvExport } from '@/components/data-tool-rows';
 import { FieldLabel, FormField } from '@/components/form-field';
 import { LegalModal, type LegalDocType } from '@/components/legal-modal';
 import { RentPaywall } from '@/components/rent-paywall';
@@ -46,6 +47,7 @@ import {
   type AppLanguage,
 } from '@/services/i18n';
 import { requestOnboardingReplay } from '@/services/onboarding';
+import { buildPaymentsCsv, buildTenantsCsv } from '@/services/rent-csv';
 import {
   getLandlordProfile,
   getPayments,
@@ -132,6 +134,20 @@ export default function SettingsScreen() {
     }
   };
 
+  // "Verileri sil" ve "yedekten geri yükle" sonrası: dil/tema/para birimi tercihleri ve ekrandaki veriler.
+  const refreshAfterDataChange = async () => {
+    initI18n();
+    initTheme();
+    refreshQuota();
+    notifyDefaultCurrency();
+    await load(true);
+  };
+
+  const csvExports: CsvExport[] = [
+    { key: 'payments', title: t('csvPayments'), build: buildPaymentsCsv },
+    { key: 'tenants', title: t('csvTenants'), build: buildTenantsCsv },
+  ];
+
   const handleReset = () => {
     triggerHaptic.warning();
     Alert.alert(t('resetDataTitle'), t('resetDataBody'), [
@@ -142,11 +158,7 @@ export default function SettingsScreen() {
         onPress: async () => {
           await resetLocalData();
           // Dil ve tema tercihleri silindi → cihaz varsayılanlarına dön.
-          initI18n();
-          initTheme();
-          refreshQuota();
-          notifyDefaultCurrency();
-          await load(true);
+          await refreshAfterDataChange();
           // Dil az önce değişmiş olabilir: güncel dille yaz.
           Alert.alert(translateNow('resetDataDone'));
         },
@@ -348,8 +360,10 @@ export default function SettingsScreen() {
             icon={<Database size={18} color={colors.muted} />}
             title={t('statsLine', { properties: stats.properties, payments: stats.payments })}
           />
+          <DataToolRows csvExports={csvExports} onRestored={() => void refreshAfterDataChange()} />
           <ListRow icon={<Trash2 size={18} color={colors.danger} />} title={t('resetData')} onPress={handleReset} last />
         </View>
+        <Text className="mt-2 px-1 text-xs leading-4 text-muted dark:text-muted-dark">{t('dataToolsNote')}</Text>
 
         <Text className="mt-8 text-center text-xs text-faint dark:text-faint-dark">
           {factory.app.name} · {t('versionLabel', { version: factory.app.version })} · {factory.studio.name}

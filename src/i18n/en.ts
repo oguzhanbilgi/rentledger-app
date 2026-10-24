@@ -84,6 +84,16 @@ export const en = {
   subscriptionDisclaimer:
     'Subscriptions renew automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in your store account settings.',
   devPreviewNotice: 'Development preview — no real payment is made.',
+  trialDays: '{count}-day free trial',
+  trialMonths: '{count}-month free trial',
+  trialCta: 'Start free trial',
+  lifetimeCta: 'Buy once',
+  termsTrial:
+    '{trial}, then {price}. Cancel before the trial ends and you will not be charged. Renews automatically until you cancel in {store}.',
+  termsRenewing: '{price}, renews automatically until you cancel in {store}.',
+  termsLifetime: 'One-time payment of {price}. Not a subscription — nothing renews.',
+  storeSubscriptionsAndroid: 'Google Play › Subscriptions',
+  storeSubscriptionsIos: 'App Store › Subscriptions',
 
   // Settings
   settingsTitle: 'Settings',
@@ -109,6 +119,34 @@ export const en = {
   resetDataBody:
     'All properties, tenants, payments, your landlord profile and preferences on this device will be deleted. Purchases and the free receipt counter are kept.',
   resetDataDone: 'Local data deleted.',
+  backupCreate: 'Back up data',
+  backupCreateHint: 'Save a backup file to Drive, email or Files',
+  backupRestore: 'Restore from backup',
+  backupRestoreHint: 'Moving to a new phone? Pick your backup file',
+  backupRestoreTitle: 'Restore this backup?',
+  backupRestoreBody:
+    'The backup from {date} ({count} records) will replace the records on this device. Purchases are not affected; restore them with "Restore purchases".',
+  backupRestoreConfirm: 'Restore',
+  backupRestoreDone: 'Backup restored.',
+  backupInvalid: 'This file is not a {app} backup.',
+  backupOtherApp: 'This backup belongs to another app.',
+  backupTooNew: 'This backup was made with a newer version of {app}. Update the app and try again.',
+  csvExport: 'Export as CSV',
+  csvHint: 'Opens in Excel or Google Sheets',
+  csvEmpty: 'There is nothing to export yet.',
+  csvPayments: 'Payments (CSV)',
+  csvTenants: 'Tenants (CSV)',
+  csvPaymentHeaders: 'Receipt no|Payment date|Period|Tenant|Property|Amount|Currency|Method|Status|Notes',
+  csvTenantHeaders:
+    'Tenant|Phone|Email|ID / tax no|Property|Rent|Deposit|Currency|Due day|Lease start|Lease end|Status|Notes',
+  csvStatusPaid: 'Paid',
+  csvStatusPartial: 'Partial',
+  csvStatusPending: 'Pending',
+  csvTenantActive: 'Active',
+  csvTenantPast: 'Past',
+  fileShareUnavailable: 'Sharing files is not available on this device.',
+  dataToolsNote:
+    'Backups and CSV exports are always free. Your data stays on your device unless you share the file.',
   openFullPolicy: 'Open full policy',
   versionLabel: 'Version {version}',
 

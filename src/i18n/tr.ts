@@ -85,6 +85,16 @@ export const tr: Record<TranslationKey, string> = {
   subscriptionDisclaimer:
     'Abonelikler, dönem bitiminden en az 24 saat önce iptal edilmediği sürece otomatik yenilenir. Mağaza hesap ayarlarınızdan dilediğiniz zaman yönetebilir veya iptal edebilirsiniz.',
   devPreviewNotice: 'Geliştirme önizlemesi — gerçek ödeme alınmaz.',
+  trialDays: '{count} gün ücretsiz',
+  trialMonths: '{count} ay ücretsiz',
+  trialCta: 'Ücretsiz denemeyi başlat',
+  lifetimeCta: 'Tek seferlik satın al',
+  termsTrial:
+    '{trial}, ardından {price}. Deneme bitmeden iptal ederseniz ücret alınmaz. {store} üzerinden iptal edene kadar otomatik yenilenir.',
+  termsRenewing: '{price}; {store} üzerinden iptal edene kadar otomatik yenilenir.',
+  termsLifetime: 'Tek seferlik {price} ödeme. Abonelik değildir, yenilenmez.',
+  storeSubscriptionsAndroid: 'Google Play › Abonelikler',
+  storeSubscriptionsIos: 'App Store › Abonelikler',
 
   // Ayarlar
   settingsTitle: 'Ayarlar',
@@ -110,6 +120,34 @@ export const tr: Record<TranslationKey, string> = {
   resetDataBody:
     'Bu cihazdaki tüm mülkler, kiracılar, tahsilatlar, ev sahibi bilgileriniz ve tercihleriniz silinecek. Satın alımlarınız ve ücretsiz makbuz sayacı korunur.',
   resetDataDone: 'Yerel veriler silindi.',
+  backupCreate: 'Verileri yedekle',
+  backupCreateHint: "Yedek dosyasını Drive'a, e-postaya veya Dosyalar'a kaydedin",
+  backupRestore: 'Yedekten geri yükle',
+  backupRestoreHint: 'Yeni telefona mı geçtiniz? Yedek dosyanızı seçin',
+  backupRestoreTitle: 'Bu yedek geri yüklensin mi?',
+  backupRestoreBody:
+    '{date} tarihli yedek ({count} kayıt) bu cihazdaki kayıtların yerini alacak. Satın alımlarınız etkilenmez; "Satın alımları geri yükle" ile açabilirsiniz.',
+  backupRestoreConfirm: 'Geri yükle',
+  backupRestoreDone: 'Yedek geri yüklendi.',
+  backupInvalid: 'Bu dosya bir {app} yedeği değil.',
+  backupOtherApp: 'Bu yedek başka bir uygulamaya ait.',
+  backupTooNew: 'Bu yedek {app} uygulamasının daha yeni bir sürümüyle alınmış. Uygulamayı güncelleyip tekrar deneyin.',
+  csvExport: 'CSV olarak dışa aktar',
+  csvHint: "Excel veya Google E-Tablolar'da açılır",
+  csvEmpty: 'Henüz dışa aktarılacak kayıt yok.',
+  csvPayments: 'Ödemeler (CSV)',
+  csvTenants: 'Kiracılar (CSV)',
+  csvPaymentHeaders: 'Makbuz no|Ödeme tarihi|Dönem|Kiracı|Mülk|Tutar|Para birimi|Ödeme şekli|Durum|Notlar',
+  csvTenantHeaders:
+    'Kiracı|Telefon|E-posta|TC / vergi no|Mülk|Kira|Depozito|Para birimi|Ödeme günü|Sözleşme başlangıcı|Sözleşme bitişi|Durum|Notlar',
+  csvStatusPaid: 'Ödendi',
+  csvStatusPartial: 'Kısmi',
+  csvStatusPending: 'Bekliyor',
+  csvTenantActive: 'Aktif',
+  csvTenantPast: 'Eski',
+  fileShareUnavailable: 'Bu cihazda dosya paylaşımı kullanılamıyor.',
+  dataToolsNote:
+    'Yedekleme ve CSV dışa aktarma her zaman ücretsizdir. Dosyayı siz paylaşmadıkça verileriniz cihazınızda kalır.',
   openFullPolicy: 'Metnin tamamını aç',
   versionLabel: 'Sürüm {version}',
 

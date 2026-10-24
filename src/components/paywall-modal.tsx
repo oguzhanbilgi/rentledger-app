@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Check, Crown, RotateCcw, X } from 'lucide-react-native';
 
@@ -7,11 +7,12 @@ import { LegalModal, type LegalDocType } from '@/components/legal-modal';
 import { Button } from '@/components/ui/button';
 import { useThemeColors } from '@/constants/theme';
 import { triggerHaptic } from '@/services/haptics';
-import { brandParams, useI18n, type TranslationKey } from '@/services/i18n';
+import { brandParams, useI18n, type TranslationKey, type TranslationParams } from '@/services/i18n';
 import {
   loadPaywallPlans,
   purchasePlan,
   restorePurchases,
+  type FreeTrial,
   type PaywallPlan,
   type PlanKind,
   type PurchasesMode,
@@ -46,6 +47,37 @@ type LoadState =
   | { status: 'loading' }
   | { status: 'ready'; plans: PaywallPlan[]; mode: PurchasesMode }
   | { status: 'unavailable' };
+
+type Translate = (key: TranslationKey, params?: TranslationParams) => string;
+
+function trialLabel(trial: FreeTrial, t: Translate): string {
+  return t(trial.unit === 'day' ? 'trialDays' : 'trialMonths', { count: trial.count });
+}
+
+/**
+ * Seçili planın satın alma koşulları, CTA'nın hemen altında: fiyat, dönem, deneme
+ * süresi ve iptal yolu (Google Play abonelik politikası bunları açıkça ister).
+ */
+function planTerms(plan: PaywallPlan, t: Translate): string {
+  if (plan.kind === 'lifetime') {
+    return t('termsLifetime', { price: plan.priceString });
+  }
+  const periodKey = PLAN_PERIOD[plan.kind];
+  const params = {
+    // "$24.99 / year" — dönemi bilinmeyen planda yalnızca fiyat.
+    price: periodKey ? `${plan.priceString} ${t(periodKey)}` : plan.priceString,
+    store: t(Platform.OS === 'ios' ? 'storeSubscriptionsIos' : 'storeSubscriptionsAndroid'),
+  };
+  return plan.freeTrial
+    ? t('termsTrial', { ...params, trial: trialLabel(plan.freeTrial, t) })
+    : t('termsRenewing', params);
+}
+
+function ctaLabel(plan: PaywallPlan | null, t: Translate): string {
+  if (plan?.freeTrial) return t('trialCta');
+  if (plan?.kind === 'lifetime') return t('lifetimeCta');
+  return t('paywallCta');
+}
 
 export function PaywallModal({ visible, onClose, reason, benefits }: PaywallModalProps) {
   const { t } = useI18n();
@@ -231,6 +263,11 @@ export function PaywallModal({ visible, onClose, reason, benefits }: PaywallModa
                               </View>
                             ) : null}
                           </View>
+                          {plan.freeTrial ? (
+                            <Text className="mt-1 text-xs font-bold text-primary">
+                              {trialLabel(plan.freeTrial, t)}
+                            </Text>
+                          ) : null}
                           {plan.savingsPercent ? (
                             <Text className="mt-1 text-xs font-semibold text-accent">
                               {t('planSave', { percent: plan.savingsPercent })}
@@ -262,12 +299,18 @@ export function PaywallModal({ visible, onClose, reason, benefits }: PaywallModa
           ) : null}
 
           <Button
-            label={t('paywallCta')}
+            label={ctaLabel(selectedPlan, t)}
             onPress={handlePurchase}
             loading={purchasing}
             disabled={!selectedPlan || restoring}
             className="mt-5"
           />
+
+          {selectedPlan ? (
+            <Text className="mt-3 text-center text-xs leading-5 text-muted dark:text-muted-dark">
+              {planTerms(selectedPlan, t)}
+            </Text>
+          ) : null}
 
           <Pressable
             accessibilityRole="button"

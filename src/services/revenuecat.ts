@@ -34,6 +34,12 @@ export interface SubscriptionState {
 
 export type PlanKind = 'weekly' | 'monthly' | 'annual' | 'lifetime' | 'other';
 
+/** Ücretsiz deneme süresi. Haftalar güne çevrilir (P1W → 7 gün), yıllar aya. */
+export interface FreeTrial {
+  unit: 'day' | 'month';
+  count: number;
+}
+
 export interface PaywallPlan {
   id: string;
   kind: PlanKind;
@@ -44,6 +50,11 @@ export interface PaywallPlan {
   /** En pahalı haftalık maliyete göre gerçek tasarruf yüzdesi (yoksa null). */
   savingsPercent: number | null;
   isBestValue: boolean;
+  /**
+   * Bu kullanıcının bu planda alabileceği ücretsiz deneme; yoksa null.
+   * Mağazada tanımlı ve kullanıcı uygunsa dolu gelir (koda deneme süresi yazılmaz).
+   */
+  freeTrial: FreeTrial | null;
 }
 
 export type OfferingsResult =
@@ -190,6 +201,54 @@ function weeklyCost(kind: PlanKind, price: number): number | null {
   }
 }
 
+function trialFromPeriod(unit: string, value: number): FreeTrial | null {
+  if (!Number.isFinite(value) || value <= 0) return null;
+  switch (unit) {
+    case 'DAY':
+      return { unit: 'day', count: value };
+    case 'WEEK':
+      return { unit: 'day', count: value * 7 };
+    case 'MONTH':
+      return { unit: 'month', count: value };
+    case 'YEAR':
+      return { unit: 'month', count: value * 12 };
+    default:
+      return null;
+  }
+}
+
+/**
+ * Google Play: RevenueCat `defaultOption` olarak kullanıcının uygun olduğu en uzun
+ * ücretsiz denemeyi seçer ve `purchasePackage` da bu seçeneği satın alır; Play,
+ * uygun olmayan teklifleri hiç döndürmez.
+ * App Store: tanıtım fiyatı ücretsizse ve RevenueCat kullanıcıyı uygun bulduysa.
+ */
+function freeTrialOf(pkg: PurchasesPackage, iosEligibleIds: Set<string>): FreeTrial | null {
+  const { product } = pkg;
+  if (Platform.OS === 'android') {
+    const phase = product.defaultOption?.freePhase;
+    return phase ? trialFromPeriod(phase.billingPeriod.unit, phase.billingPeriod.value) : null;
+  }
+  const intro = product.introPrice;
+  if (!intro || intro.price !== 0 || !iosEligibleIds.has(product.identifier)) return null;
+  return trialFromPeriod(intro.periodUnit, intro.periodNumberOfUnits * Math.max(1, intro.cycles));
+}
+
+async function iosTrialEligibleIds(packages: PurchasesPackage[]): Promise<Set<string>> {
+  const candidates = packages
+    .filter((pkg) => pkg.product.introPrice?.price === 0)
+    .map((pkg) => pkg.product.identifier);
+  if (Platform.OS !== 'ios' || candidates.length === 0) return new Set();
+  try {
+    const result = await Purchases.checkTrialOrIntroductoryPriceEligibility(candidates);
+    const eligible = Purchases.INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_ELIGIBLE;
+    return new Set(candidates.filter((id) => result[id]?.status === eligible));
+  } catch {
+    // Uygunluk bilinmiyorsa deneme vaat etme.
+    return new Set();
+  }
+}
+
 /** Gerçek mağaza fiyatlarından tasarruf yüzdesi hesaplar; uydurma "%85" rozetleri yok. */
 function withSavings(plans: Omit<PaywallPlan, 'savingsPercent' | 'isBestValue'>[]): PaywallPlan[] {
   const costs = plans
@@ -224,6 +283,8 @@ function devPreviewPlans(): PaywallPlan[] {
       price: parse(prices[kind]),
       currencyCode: 'USD',
       pricePerMonthString: null,
+      // Önizlemede deneme metinlerini görmek için; yayında deneme yalnızca mağazadan gelir.
+      freeTrial: kind === 'annual' ? ({ unit: 'day', count: 7 } as const) : null,
     }))
   );
 }
@@ -248,6 +309,7 @@ export async function loadPaywallPlans(): Promise<OfferingsResult> {
     }
 
     packagesById.clear();
+    const iosEligibleIds = await iosTrialEligibleIds(packages);
     const plans = packages.map((pkg) => {
       packagesById.set(pkg.identifier, pkg);
       return {
@@ -257,6 +319,7 @@ export async function loadPaywallPlans(): Promise<OfferingsResult> {
         price: pkg.product.price,
         currencyCode: pkg.product.currencyCode,
         pricePerMonthString: pkg.product.pricePerMonthString ?? null,
+        freeTrial: freeTrialOf(pkg, iosEligibleIds),
       };
     });
     return { status: 'ok', plans: withSavings(plans), mode: 'store' };

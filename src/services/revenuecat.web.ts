@@ -21,6 +21,11 @@ export interface SubscriptionState {
 
 export type PlanKind = 'weekly' | 'monthly' | 'annual' | 'lifetime' | 'other';
 
+export interface FreeTrial {
+  unit: 'day' | 'month';
+  count: number;
+}
+
 export interface PaywallPlan {
   id: string;
   kind: PlanKind;
@@ -30,6 +35,7 @@ export interface PaywallPlan {
   pricePerMonthString: string | null;
   savingsPercent: number | null;
   isBestValue: boolean;
+  freeTrial: FreeTrial | null;
 }
 
 export type OfferingsResult =
@@ -98,6 +104,8 @@ export async function loadPaywallPlans(): Promise<OfferingsResult> {
       pricePerMonthString: null,
       savingsPercent: null,
       isBestValue: kind === 'annual',
+      // Önizlemede deneme metinlerini görmek için; yayında deneme yalnızca mağazadan gelir.
+      freeTrial: kind === 'annual' ? ({ unit: 'day', count: 7 } as const) : null,
     })
   );
   return { status: 'ok', plans, mode: 'dev-preview' };

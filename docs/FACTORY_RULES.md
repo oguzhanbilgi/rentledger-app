@@ -52,22 +52,40 @@
   Önerilen başlangıç merdiveni (Play Console'da ayarlanır): haftalık $3.99 · aylık $9.99 · yıllık $29.99 · ömür boyu $49.99.
 - **Pro yalnızca aktif entitlement ile açılır.** İptal, bekleyen ödeme, hata, paket yok → Pro yok.
 - Simüle satın alma sadece `__DEV__` + anahtar yokken (Expo Go) çalışır ve ekranda "geliştirme önizlemesi" yazar.
+- **Paywall düzeni:** yıllık plan en üstte ve önceden seçili ("En avantajlı"). Ücretsiz deneme yalnızca mağazada
+  tanımlıysa ve kullanıcı uygunsa gösterilir (Play'de yıllık temel plana 7 günlük teklif önerilir); süre koda yazılmaz.
+- **Koşullar CTA'nın hemen altında:** seçili planın fiyatı + dönemi, varsa deneme süresi, otomatik yenileme ve
+  iptal yolu ("Google Play › Abonelikler"). Ömür boyu üründe "tek seferlik, yenilenmez". Kapatma (X) her zaman görünür.
+- **Model uygulama bazında seçilir:** tek seferlik ihtiyaçlar (ör. satış sözleşmesi) için abonelik zorunlu tutulmaz;
+  tek seferlik ürün / ömür boyu kilit sunulur (Play abonelik politikası: "tek seferlik fayda için otomatik yenilenen
+  abonelik şart koşulamaz").
 
 ### 4.2 Ücretsiz kota
 - Varsayılan: 3 ücretsiz çıktı (`factory.config.js` → `quota.freeUnits`).
 - Hak, çıktı **başarıyla üretildikten sonra** düşülür.
-- Bonuslar: ödüllü reklam +1 (günde en fazla 3), paylaşım +1 (günde 1, toplam 3 — doğrulanamadığı için).
-- Kota sayaçları "verileri sıfırla" ile silinmez.
+- Bonuslar: ödüllü reklam +1 (günde en fazla **1** — ödüllü video aboneliğin yerini tutmamalı), paylaşım +1
+  (günde 1, toplam 3 — doğrulanamadığı için).
+- Kota sayaçları "verileri sıfırla" ile silinmez, yedeğe yazılmaz ve yedekten geri yüklenmez.
 
 ### 4.3 Reklam (AdMob)
 - Geliştirmede Google test birimleri, yayında yalnızca gerçek birimler. Gerçek birim yoksa reklam gösterilmez.
 - UMP rıza formu her açılışta toplanır; Ayarlar'da "Reklam gizlilik tercihleri" (gerekliyse) bulunur.
 - Banner: ana ekranın altında. Geçiş reklamı: yalnızca doğal kırılma anında (çıktı paylaşıldıktan sonra),
   her 3 tetikte bir, en az 3 dakika arayla, oturum başına en fazla 3. **Zamanlayıcıyla reklam yok.**
+- Geçiş reklamı **uygulama bazında** açılır/kapanır (`monetization.interstitial.enabled`). Kullanıcıların reklamı
+  cezalandırdığı nişlerde (puantaj, teklif) kapalıdır; yalnızca banner + ödüllü reklam kalır.
 - Ödüllü reklam: ödül yalnızca `EARNED_REWARD` olayında. Reklam yüklenemezse "şu an video yok" denir.
 - Reklam yüklenemezse sahte reklam / yer tutucu gösterilmez. Pro kullanıcıya hiçbir reklam ve rıza formu gösterilmez.
 
-### 4.4 Değerlendirme
+### 4.4 Veri taşınabilirliği (her zaman ücretsiz)
+- Ayarlar → Veriler: **Verileri yedekle** (JSON, paylaşım penceresiyle Drive/e-posta/Dosyalar), **Yedekten geri yükle**
+  ve uygulamanın ana kayıtları için **CSV dışa aktarma**. Bunlar asla paywall'a konmaz ve kota düşürmez.
+- Yedek: `USER_DATA_TABLES` + korunmayan tercihler + belge numarası sayaçları (`BACKUP_COUNTER_TABLES`, sayaç
+  tercihleri); sayaçlar geri yüklemede asla küçülmez. Geri yükleme tek işlemdir; başka uygulamanın
+  veya daha yeni sürümün yedeği reddedilir. Satın alımlar yedekte değil, mağazada ("Satın alımları geri yükle").
+- CSV: UTF-8 BOM, Türkçe'de `;` ayraç ve ondalık virgül; formül enjeksiyonuna karşı kaçış (`src/services/csv.ts`).
+
+### 4.5 Değerlendirme
 - Yalnızca resmi `expo-store-review` API'si; 2. başarılı çıktıdan sonra, en az 60 gün arayla.
 - "5 yıldız ver" gibi yönlendirme, puan karşılığı ödül veya koordineli yorum toplama **yasak** (Play politikası).
 
