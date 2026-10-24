@@ -1,311 +1,279 @@
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Alert, Pressable, Text, View } from 'react-native';
+import { Building2, Plus } from 'lucide-react-native';
+
+import { FieldLabel, FormField } from '@/components/form-field';
+import { SheetModal } from '@/components/sheet-modal';
+import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { useThemeColors } from '@/constants/theme';
 import {
-  Alert,
-  Modal,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { Building2, Plus, User, X } from 'lucide-react-native';
-import { CurrencyCode, PropertyRecord, TenantRecord, saveProperty, saveTenant } from '@/services/database';
-import { AppLanguage, formatMoney, t } from '@/services/i18n';
+  SUPPORTED_CURRENCIES,
+  currencyOptionLabel,
+  getDefaultCurrency,
+  type CurrencyCode,
+} from '@/services/currency';
+import { triggerHaptic } from '@/services/haptics';
+import { useI18n } from '@/services/i18n';
+import { PROPERTY_TYPES, parseAmountInput, propertyTypeLabel } from '@/services/rent-format';
+import { newId, savePropertyWithTenant } from '@/services/rentledger-data';
+import {
+  FREE_PROPERTY_LIMIT,
+  type PropertyRecord,
+  type PropertyType,
+  type TenantRecord,
+} from '@/services/rentledger-types';
+import { useSubscription } from '@/services/revenuecat';
+import { toLocalDateKey } from '@/utils/date';
 
 interface NewTenantPropertyModalProps {
   visible: boolean;
   onClose: () => void;
   onSaved: () => void;
-  lang: AppLanguage;
-  isPro: boolean;
   currentPropertyCount: number;
   onOpenPaywall: () => void;
 }
 
+/** Mülk + kiracı formu. Ücretsiz planda 2 mülk sınırı; Pro'da sınırsız (abonelik değişince anında). */
 export function NewTenantPropertyModal({
   visible,
   onClose,
   onSaved,
-  lang,
-  isPro,
   currentPropertyCount,
   onOpenPaywall,
 }: NewTenantPropertyModalProps) {
-  const isTr = lang === 'tr';
+  const { t, language } = useI18n();
+  const colors = useThemeColors();
+  const { isPro } = useSubscription();
 
   const [propName, setPropName] = useState('');
   const [propAddress, setPropAddress] = useState('');
-  const [propType, setPropType] = useState<PropertyRecord['propertyType']>('apartment');
-
+  const [propType, setPropType] = useState<PropertyType>('apartment');
   const [tenantName, setTenantName] = useState('');
   const [tenantPhone, setTenantPhone] = useState('');
-  const [tenantTc, setTenantTc] = useState('');
+  const [tenantId, setTenantId] = useState('');
   const [rentAmount, setRentAmount] = useState('');
   const [depositAmount, setDepositAmount] = useState('');
-  const [dueDay, setDueDay] = useState('15');
-  const [currency, setCurrency] = useState<CurrencyCode>('TRY');
+  const [dueDay, setDueDay] = useState('1');
+  const [currency, setCurrency] = useState<CurrencyCode>(() => getDefaultCurrency());
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = async () => {
-    if (!isPro && currentPropertyCount >= 2) {
-      Alert.alert(
-        isTr ? 'Ücretsiz Limit Doldu' : 'Free Limit Reached',
-        isTr
-          ? 'Ücretsiz planda en fazla 2 mülk takip edebilirsiniz. Sınırsız mülk ve kiracı kaydı için PRO üyeliğe geçebilirsiniz.'
-          : 'Free plan supports up to 2 properties. Upgrade to PRO for unlimited properties and tenants.',
-        [
-          { text: isTr ? 'Vazgeç' : 'Cancel', style: 'cancel' },
-          {
-            text: isTr ? "PRO'ya Geç" : 'Upgrade to PRO',
-            onPress: () => {
-              onClose();
-              onOpenPaywall();
-            },
-          },
-        ]
-      );
-      return;
-    }
-
-    if (!propName.trim()) {
-      Alert.alert(isTr ? 'Eksik Bilgi' : 'Missing Info', isTr ? 'Lütfen mülk / daire adını girin.' : 'Please enter property name.');
-      return;
-    }
-    if (!tenantName.trim()) {
-      Alert.alert(isTr ? 'Eksik Bilgi' : 'Missing Info', isTr ? 'Lütfen kiracı adını girin.' : 'Please enter tenant name.');
-      return;
-    }
-
-    const rentNum = parseFloat(rentAmount.replace(',', '.')) || 0;
-    const depositNum = parseFloat(depositAmount.replace(',', '.')) || 0;
-    const dueDayNum = parseInt(dueDay, 10) || 1;
-
-    const propId = `prop_${Date.now()}`;
-    const newProp: PropertyRecord = {
-      id: propId,
-      name: propName.trim(),
-      address: propAddress.trim() || propName.trim(),
-      propertyType: propType,
-      createdAt: new Date().toISOString(),
-    };
-
-    const newTenant: TenantRecord = {
-      id: `ten_${Date.now()}`,
-      propertyId: propId,
-      name: tenantName.trim(),
-      phone: tenantPhone.trim(),
-      tcOrId: tenantTc.trim(),
-      rentAmount: rentNum,
-      depositAmount: depositNum,
-      currency,
-      paymentDueDay: Math.min(Math.max(dueDayNum, 1), 31),
-      leaseStartDate: new Date().toISOString().split('T')[0],
-      status: 'active',
-      createdAt: new Date().toISOString(),
-    };
-
-    await saveProperty(newProp);
-    await saveTenant(newTenant);
-
-    // Reset form
+  useEffect(() => {
+    if (!visible) return;
     setPropName('');
     setPropAddress('');
+    setPropType('apartment');
     setTenantName('');
     setTenantPhone('');
-    setTenantTc('');
+    setTenantId('');
     setRentAmount('');
     setDepositAmount('');
-    setDueDay('15');
+    setDueDay('1');
+    setCurrency(getDefaultCurrency());
+    setSaving(false);
+  }, [visible]);
 
-    onSaved();
-    onClose();
+  const limitReached = !isPro && currentPropertyCount >= FREE_PROPERTY_LIMIT;
+
+  const showLimit = () => {
+    triggerHaptic.warning();
+    Alert.alert(t('propertyLimitTitle'), t('propertyLimitBody', { count: FREE_PROPERTY_LIMIT }), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('upgradeToPro'),
+        onPress: () => {
+          onClose();
+          onOpenPaywall();
+        },
+      },
+    ]);
+  };
+
+  const handleSave = async () => {
+    if (saving) return;
+    if (limitReached) {
+      showLimit();
+      return;
+    }
+    const missing = (message: string) => {
+      triggerHaptic.warning();
+      Alert.alert(t('missingInfoTitle'), message);
+    };
+    if (!propName.trim()) return missing(t('errorPropertyName'));
+    if (!tenantName.trim()) return missing(t('errorTenantName'));
+    const rent = parseAmountInput(rentAmount);
+    if (!Number.isFinite(rent) || rent <= 0) return missing(t('errorRent'));
+    const deposit = parseAmountInput(depositAmount);
+    const day = Math.min(Math.max(Number.parseInt(dueDay, 10) || 1, 1), 31);
+
+    setSaving(true);
+    try {
+      const now = new Date().toISOString();
+      const property: PropertyRecord = {
+        id: newId('prop'),
+        name: propName.trim(),
+        address: propAddress.trim() || propName.trim(),
+        propertyType: propType,
+        createdAt: now,
+      };
+      const tenant: TenantRecord = {
+        id: newId('ten'),
+        propertyId: property.id,
+        name: tenantName.trim(),
+        phone: tenantPhone.trim(),
+        tcOrId: tenantId.trim(),
+        rentAmount: rent,
+        depositAmount: Number.isFinite(deposit) && deposit > 0 ? deposit : 0,
+        currency,
+        paymentDueDay: day,
+        leaseStartDate: toLocalDateKey(),
+        status: 'active',
+        createdAt: now,
+      };
+      await savePropertyWithTenant(property, tenant);
+      triggerHaptic.success();
+      onSaved();
+      onClose();
+    } catch (error) {
+      console.warn('[property] Kaydedilemedi:', error);
+      Alert.alert(t('errorTitle'), t('tryAgainLater'));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View className="flex-1 bg-black/60 justify-end">
-        <View className="bg-white dark:bg-[#131b2e] rounded-t-3xl max-h-[90%] p-5 border-t border-slate-200 dark:border-slate-800">
-          {/* Header */}
-          <View className="flex-row items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-            <View className="flex-row items-center gap-2.5">
-              <View className="w-10 h-10 rounded-2xl bg-emerald-500/15 items-center justify-center">
-                <Building2 size={22} color="#10b981" />
-              </View>
-              <View>
-                <Text className="text-base font-extrabold text-slate-900 dark:text-white">
-                  {isTr ? 'Yeni Mülk & Kiracı Ekle' : 'Add Property & Tenant'}
-                </Text>
-                <Text className="text-xs text-slate-500 dark:text-slate-400">
-                  {isTr ? 'Taşınmaz ve kira sözleşme bilgileri' : 'Property and lease details'}
-                </Text>
-              </View>
-            </View>
-            <Pressable onPress={onClose} className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 active:opacity-70">
-              <X size={18} color="#64748b" />
-            </Pressable>
-          </View>
+    <SheetModal
+      visible={visible}
+      onClose={onClose}
+      title={t('propertyModalTitle')}
+      subtitle={t('propertyModalSubtitle')}
+      icon={<Building2 size={20} color={colors.accent} />}>
+      {limitReached ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={showLimit}
+          className="mb-5 rounded-2xl border border-warning/40 bg-warning/10 p-4 active:opacity-80">
+          <Text className="text-sm font-bold text-ink dark:text-ink-dark">
+            {t('propertyLimitBanner', { used: currentPropertyCount, limit: FREE_PROPERTY_LIMIT })}
+          </Text>
+          <Text className="mt-0.5 text-xs text-muted dark:text-muted-dark">{t('propertyLimitHint')}</Text>
+        </Pressable>
+      ) : null}
 
-          <ScrollView showsVerticalScrollIndicator={false} className="py-4">
-            {/* 1. Mülk Bilgileri */}
-            <View className="mb-4">
-              <Text className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-2">
-                1. {isTr ? 'Taşınmaz Bilgileri' : 'Property Information'}
-              </Text>
-
-              <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                {isTr ? 'Mülk / Daire Adı *' : 'Property Name *'}
-              </Text>
-              <TextInput
-                value={propName}
-                onChangeText={setPropName}
-                placeholder={isTr ? 'Örn: Kadıköy 2+1 Daire, Bağdat Cad. Dükkan' : 'e.g. Apartment #4B, Downtown Store'}
-                placeholderTextColor="#94a3b8"
-                className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 text-sm text-slate-900 dark:text-white font-semibold mb-3"
-              />
-
-              <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                {isTr ? 'Adres / Bina No' : 'Address / Building'}
-              </Text>
-              <TextInput
-                value={propAddress}
-                onChangeText={setPropAddress}
-                placeholder={isTr ? 'Mahalle, Cadde, No, İl/İlçe' : 'Street address, city'}
-                placeholderTextColor="#94a3b8"
-                className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 text-sm text-slate-900 dark:text-white font-semibold mb-3"
-              />
-
-              {/* Mülk Türü */}
-              <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                {isTr ? 'Mülk Türü' : 'Property Type'}
-              </Text>
-              <View className="flex-row gap-2 mb-2">
-                {[
-                  { id: 'apartment', label: isTr ? 'Daire' : 'Apt' },
-                  { id: 'shop', label: isTr ? 'Dükkan' : 'Shop' },
-                  { id: 'office', label: isTr ? 'Ofis' : 'Office' },
-                  { id: 'house', label: isTr ? 'Müstakil' : 'House' },
-                ].map((item) => (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => setPropType(item.id as any)}
-                    className={`flex-1 py-2 rounded-xl border items-center ${
-                      propType === item.id
-                        ? 'bg-emerald-600 border-emerald-500'
-                        : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800'
-                    }`}>
-                    <Text
-                      className={`text-xs font-extrabold ${
-                        propType === item.id ? 'text-white' : 'text-slate-700 dark:text-slate-300'
-                      }`}>
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-
-            {/* 2. Kiracı Bilgileri */}
-            <View className="mb-4">
-              <Text className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-2">
-                2. {isTr ? 'Kiracı ve Kira Bilgileri' : 'Tenant & Lease Terms'}
-              </Text>
-
-              <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                {isTr ? 'Kiracı Adı Soyadı *' : 'Tenant Full Name *'}
-              </Text>
-              <TextInput
-                value={tenantName}
-                onChangeText={setTenantName}
-                placeholder={isTr ? 'Örn: Ahmet Yılmaz' : 'e.g. John Doe'}
-                placeholderTextColor="#94a3b8"
-                className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 text-sm text-slate-900 dark:text-white font-semibold mb-3"
-              />
-
-              <View className="flex-row gap-3 mb-3">
-                <View className="flex-1">
-                  <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    {isTr ? 'Telefon Numarası' : 'Phone'}
-                  </Text>
-                  <TextInput
-                    value={tenantPhone}
-                    onChangeText={setTenantPhone}
-                    keyboardType="phone-pad"
-                    placeholder="05XX XXX XX XX"
-                    placeholderTextColor="#94a3b8"
-                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 text-sm text-slate-900 dark:text-white font-semibold"
-                  />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    {isTr ? 'TC / Kimlik No (Opsiyonel)' : 'ID / Tax No (Optional)'}
-                  </Text>
-                  <TextInput
-                    value={tenantTc}
-                    onChangeText={setTenantTc}
-                    keyboardType="numeric"
-                    placeholder="11 Haneli TC"
-                    placeholderTextColor="#94a3b8"
-                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 text-sm text-slate-900 dark:text-white font-semibold"
-                  />
-                </View>
-              </View>
-
-              {/* Kira Bedeli, Ödeme Günü ve Depozito */}
-              <View className="flex-row gap-3 mb-3">
-                <View className="flex-1">
-                  <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    {isTr ? 'Aylık Kira Bedeli *' : 'Monthly Rent *'}
-                  </Text>
-                  <TextInput
-                    value={rentAmount}
-                    onChangeText={setRentAmount}
-                    keyboardType="numeric"
-                    placeholder="Örn: 25000"
-                    placeholderTextColor="#94a3b8"
-                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 text-sm text-slate-900 dark:text-white font-semibold"
-                  />
-                </View>
-                <View className="w-36">
-                  <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    {isTr ? 'Ödeme Günü' : 'Due Day'}
-                  </Text>
-                  <TextInput
-                    value={dueDay}
-                    onChangeText={setDueDay}
-                    keyboardType="numeric"
-                    placeholder="Ayın 1-31'i"
-                    placeholderTextColor="#94a3b8"
-                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 text-sm text-slate-900 dark:text-white font-semibold"
-                  />
-                </View>
-              </View>
-
-              <View className="mb-4">
-                <Text className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  {isTr ? 'Alınan Depozito (Opsiyonel)' : 'Deposit Received (Optional)'}
-                </Text>
-                <TextInput
-                  value={depositAmount}
-                  onChangeText={setDepositAmount}
-                  keyboardType="numeric"
-                  placeholder="Örn: 50000"
-                  placeholderTextColor="#94a3b8"
-                  className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 text-sm text-slate-900 dark:text-white font-semibold"
-                />
-              </View>
-            </View>
-
-            {/* Save Button */}
+      <Text className="mb-3 text-xs font-bold uppercase tracking-wider text-accent">{t('sectionProperty')}</Text>
+      <FormField
+        label={t('fieldPropertyName')}
+        value={propName}
+        onChangeText={setPropName}
+        placeholder={t('propertyNamePlaceholder')}
+        className="mb-3"
+      />
+      <FormField
+        label={t('fieldAddress')}
+        value={propAddress}
+        onChangeText={setPropAddress}
+        placeholder={t('addressPlaceholder')}
+        className="mb-3"
+      />
+      <FieldLabel>{t('fieldPropertyType')}</FieldLabel>
+      <View className="mb-6 flex-row flex-wrap gap-2">
+        {PROPERTY_TYPES.map((type) => {
+          const selected = type === propType;
+          return (
             <Pressable
-              onPress={handleSave}
-              className="w-full py-4 rounded-2xl bg-emerald-600 active:opacity-85 items-center justify-center flex-row gap-2 shadow-lg mb-6">
-              <Plus size={18} color="#ffffff" />
-              <Text className="text-sm font-extrabold text-white">
-                {isTr ? 'Mülk ve Kiracıyı Kaydet' : 'Save Property & Tenant'}
+              key={type}
+              accessibilityRole="radio"
+              accessibilityState={{ selected }}
+              onPress={() => {
+                triggerHaptic.selection();
+                setPropType(type);
+              }}
+              className={`rounded-xl border px-3.5 py-2 ${
+                selected
+                  ? 'border-primary bg-primary/10'
+                  : 'border-line bg-surface dark:border-line-dark dark:bg-surface-dark'
+              }`}>
+              <Text
+                className={`text-[13px] font-semibold ${
+                  selected ? 'text-primary' : 'text-ink dark:text-ink-dark'
+                }`}>
+                {propertyTypeLabel(type, language)}
               </Text>
             </Pressable>
-          </ScrollView>
-        </View>
+          );
+        })}
       </View>
-    </Modal>
+
+      <Text className="mb-3 text-xs font-bold uppercase tracking-wider text-accent">{t('sectionTenant')}</Text>
+      <FormField
+        label={t('fieldTenantName')}
+        value={tenantName}
+        onChangeText={setTenantName}
+        placeholder={t('tenantNamePlaceholder')}
+        className="mb-3"
+      />
+      <View className="mb-3 flex-row gap-3">
+        <FormField
+          label={t('fieldPhone')}
+          value={tenantPhone}
+          onChangeText={setTenantPhone}
+          keyboardType="phone-pad"
+          placeholder={t('phonePlaceholder')}
+          className="flex-1"
+        />
+        <FormField
+          label={t('fieldTenantId')}
+          value={tenantId}
+          onChangeText={setTenantId}
+          placeholder={t('tenantIdPlaceholder')}
+          className="flex-1"
+        />
+      </View>
+
+      <FieldLabel>{t('fieldCurrency')}</FieldLabel>
+      <View className="mb-3">
+        <SegmentedControl<CurrencyCode>
+          value={currency}
+          onChange={setCurrency}
+          options={SUPPORTED_CURRENCIES.map((code) => ({ value: code, label: currencyOptionLabel(code) }))}
+        />
+      </View>
+
+      <View className="mb-3 flex-row gap-3">
+        <FormField
+          label={`${t('fieldMonthlyRent')} (${currency})`}
+          value={rentAmount}
+          onChangeText={setRentAmount}
+          keyboardType="decimal-pad"
+          placeholder={t('rentPlaceholder')}
+          className="flex-1"
+        />
+        <FormField
+          label={t('fieldDueDay')}
+          value={dueDay}
+          onChangeText={setDueDay}
+          keyboardType="number-pad"
+          maxLength={2}
+          placeholder="1"
+          className="w-32"
+        />
+      </View>
+      <FormField
+        label={`${t('fieldDeposit')} (${currency})`}
+        value={depositAmount}
+        onChangeText={setDepositAmount}
+        keyboardType="decimal-pad"
+        placeholder={t('depositPlaceholder')}
+        className="mb-6"
+      />
+
+      <Button
+        label={t('savePropertyBtn')}
+        icon={<Plus size={18} color={colors.onBrand} />}
+        onPress={handleSave}
+        loading={saving}
+      />
+    </SheetModal>
   );
 }

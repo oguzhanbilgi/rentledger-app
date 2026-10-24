@@ -1,56 +1,44 @@
-# Welcome to your Expo app 👋
+# RentLedger Pro
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Ev sahipleri için kira defteri: mülk ve kiracı kaydı, kira tahsilatı, vadesi gelen / geciken kira listesi,
+WhatsApp hatırlatma ve PDF kira makbuzu. ObAppStudio · MobileFactory "Altın Şasi v2" şablonu üzerine kuruludur.
 
-## Get started
+> Yapay zekâ asistanları için kurallar: [AGENTS.md](AGENTS.md) · Fabrika kuralları: [docs/FACTORY_RULES.md](docs/FACTORY_RULES.md)
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Geliştirme
 
 ```bash
-npm run reset-project
+npm ci
+npx expo start            # Expo Go: satın alma / reklam "geliştirme önizlemesi" modunda
+npm run typecheck
+npx expo export --platform android
+npm run verify:release    # yayın öncesi kontrol
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+Tüm uygulama kimlikleri `factory.config.js` içindedir (app.json yoktur).
 
-### Other setup steps
+## Uygulamaya özel yapı
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```
+src/app/index.tsx                 Kira paneli (özet, vadeler, tahsilatlar, makbuz)
+src/app/properties.tsx            Mülkler ve kiracılar
+src/app/explore.tsx               Ayarlar (ev sahibi bilgileri, Pro, tema, dil, para birimi, yasal)
+src/services/rentledger-data.ts   SQLite deposu (tablolar: database.ts → MIGRATIONS)
+src/services/rent-format.ts       Kira dönemi (YYYY-MM), tarih ve etiket yardımcıları
+src/services/rent-reminders.ts    Vade uyarıları + WhatsApp mesajları
+src/services/rent-summary.ts      Para birimi başına aylık özet
+src/services/receipt-pdf-generator.ts  A4 kira makbuzu (buildPdfHtml + escapeHtml)
+src/services/amount-in-words.ts   Tutar yazıyla (TR/EN; TRY/USD/EUR/GBP)
+src/services/whatsapp.ts          wa.me bağlantısı ve telefon numarası normalleştirme
+src/features/onboarding-steps.tsx Kurulum sihirbazı soruları ve örnek makbuz önizlemesi
+```
 
-## Learn more
+## Yayın öncesi sahibin yapması gerekenler
 
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- RevenueCat'te **RentLedger Pro'nun kendi** public SDK anahtarını (`goog_…`) `factory.config.js` → `monetization.revenueCat.androidApiKey` alanına yazın.
+- AdMob uygulama ve birim kimliklerini `factory.config.js` → `monetization.admob` alanına yazın.
+- `docs/index.html` metnini `obappstudio-legal` deposunda `rentledger-privacy.html` / `rentledger-terms.html` olarak yayımlayın.
+- Gerçek uygulama ekranlarından ekran görüntüsü alıp Play Console'a yükleyin (eski sentetik görseller silindi).
+- Mağaza metinleri: `store-listing/listing.json` (`npm run publish:play -- --dry-run`). RevenueCat kurulumu:
+  `npm run setup:revenuecat -- --dry-run`. Gizli anahtarlar yalnızca ortam değişkenlerinden okunur:
+  `RC_SECRET_KEY`, `PLAY_SERVICE_ACCOUNT_JSON` (bkz. `.env.example`, `scripts/README.md`).

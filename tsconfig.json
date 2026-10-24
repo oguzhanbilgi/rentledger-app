@@ -2,6 +2,7 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "allowJs": true,
     "paths": {
       "@/*": [
         "./src/*"
@@ -14,8 +15,14 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    "factory.config.js",
+    "src/constants/tokens.js",
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
     "nativewind-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "scripts"
   ]
 }

@@ -1,156 +1,126 @@
-# RentLedger Pro — Google Play Store Listing & ASO Kit
+# RentLedger Pro — Google Play Store Listing
+
+> Kurallar (docs/FACTORY_RULES.md §5): başlık ≤ 30, kısa açıklama ≤ 80, tam açıklama ≤ 4000 karakter.
+> Yalnızca uygulamada **gerçekten olan** özellikler yazılır. "Resmî / yasal geçerli / onaylı" iddiası yok.
+> Play'e yüklenen metin `store-listing/listing.json` dosyasındadır (`npm run publish:play`); bu dosya ile aynı tutun.
+> Ekran görüntüleri **gerçek uygulama ekranlarından** alınmalıdır (sentetik/çizilmiş görsel yasak) ve Play Console'a
+> elle yüklenir. Feature graphic: `store-listing/graphics/feature-graphic-1024x500.png` (EN) ve `-tr.png` (TR) —
+> `scripts/generate-store-graphics.ps1` ile üretilir.
 
 ---
 
 ## 🇹🇷 Türkçe (TR)
 
-### Uygulama Başlığı (Max 30 Karakter)
+### Uygulama Başlığı (29/30)
 ```text
 RentLedger: Kira Takip Makbuz
 ```
 
-### Kısa Açıklama (Max 80 Karakter)
+### Kısa Açıklama (78/80)
 ```text
-Kiracı ve kira takibi, resmi PDF kira makbuzu ve 1 tıkla WhatsApp hatırlatma.
+Kira ve kiracı takibi, WhatsApp hatırlatma ve PDF kira makbuzu tek uygulamada.
 ```
 
-### Tam Açıklama (Full Description - 4000 Karakter)
+### Tam Açıklama
 ```text
-Ev sahipleri, mülk yöneticileri ve gayrimenkul sahipleri için tasarlanan RentLedger Pro, daire, dükkan ve konutlarınızın kira gelirlerini, kiracı ödemelerini ve gecikmiş alacaklarını tek bir yerden kolayca takip etmenizi sağlar.
+RentLedger Pro, ev sahipleri ve küçük mülk yöneticileri için sade bir kira defteridir. Kiracılarınızı ve kira tahsilatlarınızı kaydedin, vadesi gelen kiraları görün, WhatsApp ile hatırlatma gönderin ve saniyeler içinde PDF kira makbuzu paylaşın.
 
-Excel tabloları ve kaybolan kağıt makbuzlar yerine; 15 saniyede kira tahsilatını kaydedin, yasal geçerliliğe uygun Türkçe ve İngilizce A4 PDF Kira Tahsilat Makbuzu oluşturun ve doğrudan kiracınıza WhatsApp veya e-posta ile gönderin!
+MÜLK VE KİRACI KAYDI
+• Daire, müstakil ev, dükkan, ofis ve depo kaydedin.
+• Kiracının adı, telefonu, isteğe bağlı TC kimlik / vergi numarası, aylık kira, depozito ve ödeme günü.
+• Her kiracı için ayrı para birimi: TRY, USD, EUR veya GBP.
+• Kiracıyı tek dokunuşla arayın veya WhatsApp sohbeti başlatın.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🌟 ÖNE ÇIKAN GÜÇLÜ ÖZELLİKLER
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+KİRA TAHSİLATI
+• Tutar, kira dönemi, ödeme tarihi ve ödeme yöntemi (havale/EFT, nakit, kredi kartı) ile kayıt.
+• İsteğe bağlı not (ör. "aidat dahil").
+• Her tahsilata yıl bazında sıralı makbuz numarası verilir (RL-2026-0001); silinen kayıtların numarası tekrar kullanılmaz.
 
-📋 1. MÜLK VE KİRACI YÖNETİMİ
-• Tüm daire, iş yeri, ofis ve mülklerinizi listeleyin.
-• Kiracı iletişim bilgileri, kira tutarı, depozito ve sözleşme başlangıç/bitiş tarihlerini kaydedin.
-• Tek tıkla kiracıyı doğrudan arayın veya WhatsApp mesajı başlatın.
+PDF KİRA MAKBUZU
+• A4 makbuz: makbuz numarası, ödeme tarihi ve yöntemi, ev sahibi ve kiracı bilgileri, IBAN.
+• Tutar yazıyla (Türkçe veya İngilizce, kuruş/cent dahil).
+• Kiracı ve ev sahibi imza alanları.
+• WhatsApp, e-posta veya istediğiniz uygulamayla paylaşın.
+• Makbuzlar ev sahibi tarafından hazırlanır; vergi belgesi yerine geçmez.
 
-⚡ 2. 15 SANİYEDE KİRA TAHSİLATI KAYDI
-• Havale/EFT, Nakit, Kredi Kartı veya Çek yöntemleriyle ödeme girişi yapın.
-• Kısmi ödeme veya geçmişe dönük ödemeleri kolayca işleyin.
-• Her mülkün ödeme geçmişini ve kalan bakiyesini anında görüntüleyin.
+VADE TAKİBİ VE WHATSAPP HATIRLATMA
+• Bu ay vadesi yaklaşan (5 gün) ve geciken kiralar panelde listelenir.
+• Ödeme bilgileri (banka, IBAN) eklenmiş hazır WhatsApp hatırlatma mesajı.
+• Tahsilat sonrası kiracıya WhatsApp ile ödeme onayı mesajı.
 
-📄 3. RESMİ PDF KİRA TAHSİLAT MAKBUZU
-• Türk Borçlar Kanunu ve muhasebe standartlarına uygun A4 resmi makbuz şablonu.
-• Tutarı otomatik yazıya çevirme (Örn: "On İki Bin Beş Yüz Türk Lirası").
-• Ev sahibi IBAN ve banka bilgileri.
-• Mülk Sahibi Kaşe & İmza ile Kiracı İmza alanları.
-• 3 farklı kurumsal tasarım teması (Zümrüt Yeşil, Kurumsal Lacivert, Grafit Koyu).
-• WhatsApp, Telegram veya Mail ile tek tıkla kiracıya PDF paylaşımı.
+AYLIK ÖZET
+• Bu ay beklenen, tahsil edilen ve kalan kira — her para birimi ayrı gösterilir.
 
-⏰ 4. GECİKEN KİRA UYARILARI VE 1 TIKLA WHATSAPP HATIRLATICI
-• Vadesi gelen veya geciken kiraları dashboard üzerinden tek bakışta görün.
-• Kiracıya otomatik hazırlanan nazik ve profesyonel WhatsApp ödeme hatırlatması gönderin (IBAN ve tutar dahil).
+GİZLİLİK
+• Hesap yok. Verileriniz yalnızca cihazınızda saklanır.
+• Türkçe ve İngilizce arayüz; koyu, aydınlık veya sistem teması.
 
-📊 5. FİNANSAL ÖZET VE GELİR ANALİZİ
-• Aylık toplam tahsilat, beklenen kira geliri ve tahsilat oranı.
-• Gecikmiş toplam alacak tutarı.
-• Çoklu para birimi desteği (₺ TRY, $ USD, € EUR, £ GBP).
-
-🔒 6. %100 GİZLİLİK VE ÇEVRİMDIŞI (OFFLINE) ÇALIŞMA
-• Verileriniz harici sunucularda değil, cihazınızda güvenli yerel SQLite veritabanında saklanır.
-• İnternet bağlantınız olmasa dahi kesintisiz çalışır.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💎 PRO ÜYELİK AVANTAJLARI
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Sınırsız mülk ve kiracı kaydı (Ücretsiz sürüm: 2 mülk).
-• Sınırsız ve filigransız resmi PDF kira makbuzu.
-• Reklamsız, tertemiz kullanım deneyimi.
-• Tüm premium PDF temalarına ve banka detay alanlarına tam erişim.
-
-Ev ve iş yeri kira takibinizi profesyonelleştirin, zamandan kazanın ve alacaklarınızı güvenceye alın!
+ÜCRETSİZ VE PRO
+• Ücretsiz: 3 PDF makbuz (kısa bir video izleyerek ek hak kazanılabilir), en fazla 2 mülk, reklamlı.
+• Pro: sınırsız PDF makbuz, sınırsız mülk ve kiracı, reklamsız; makbuz ve mesajlarda uygulama bağlantısı yer almaz.
 ```
 
 ---
 
 ## 🇬🇧 English (EN)
 
-### App Title (Max 30 Chars)
+### App Title (30/30)
 ```text
 RentLedger: Rent & Tenant Book
 ```
 
-### Short Description (Max 80 Chars)
+### Short Description (76/80)
 ```text
-Track rent payments, tenants, overdue alerts and generate official PDF receipts.
+Track rent and tenants, send WhatsApp reminders and share PDF rent receipts.
 ```
 
-### Full Description (4000 Chars)
+### Full Description
 ```text
-RentLedger Pro is the ultimate property management and rent tracking app designed for landlords, real estate investors, and property managers.
+RentLedger Pro is a simple rent ledger for landlords and small property managers. Record tenants and rent payments, see which rents are due, send WhatsApp reminders and share a PDF rent receipt in seconds.
 
-Ditch complex spreadsheets and lost paper slips! Record rent collections in 15 seconds, generate official PDF Rent Payment Receipts, send 1-tap WhatsApp rent reminders with payment info, and keep total control over your rental cashflow.
+PROPERTIES & TENANTS
+• Save apartments, houses, shops, offices and storage units.
+• Tenant name, phone, optional ID / tax number, monthly rent, deposit and due day.
+• A separate currency per tenant: TRY, USD, EUR or GBP.
+• Call a tenant or start a WhatsApp chat with one tap.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🌟 KEY FEATURES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RENT PAYMENTS
+• Record the amount, rent period, payment date and method (bank transfer, cash, credit card).
+• Optional note (e.g. "includes building fees").
+• Every payment gets a sequential receipt number per year (RL-2026-0001); numbers of deleted payments are never reused.
 
-📋 1. PROPERTY & TENANT MANAGEMENT
-• Track apartments, commercial shops, houses, and storage units in one place.
-• Save tenant contact details, rental amounts, deposits, and lease dates.
-• 1-tap direct phone calls and WhatsApp messaging.
+PDF RENT RECEIPTS
+• A4 receipt with receipt number, payment date and method, landlord and tenant details and IBAN.
+• Amount in words (English or Turkish, including cents).
+• Tenant and landlord signature lines.
+• Share by WhatsApp, email or any app you choose.
+• Receipts are prepared by the landlord and do not replace tax documents.
 
-⚡ 2. 15-SECOND RENT COLLECTION ENTRY
-• Record payments via Bank Transfer, Cash, Card, or Check.
-• Handle partial payments and past rent arrears effortlessly.
-• Instant payment logs and balance tracking for every unit.
+DUE DATES & WHATSAPP REMINDERS
+• Rents due in the next 5 days and overdue rents for the current month are listed on the dashboard.
+• Ready-to-send WhatsApp reminders with your payment details (bank, IBAN).
+• Payment confirmation messages to tenants after you record a payment.
 
-📄 3. PROFESSIONAL PDF RENT RECEIPTS
-• Official A4 format rent payment receipts.
-• Landlord IBAN & bank account integration.
-• Tenant and landlord signature boxes.
-• 3 clean design themes (Emerald, Indigo, Slate).
-• 1-tap PDF sharing via WhatsApp, email, or cloud drive.
+MONTHLY SUMMARY
+• Expected, collected and outstanding rent for the month — shown separately for each currency.
 
-⏰ 4. OVERDUE RENT TRACKER & WHATSAPP REMINDERS
-• Automatic dashboard alerts for due and overdue rents.
-• Send pre-composed, polite WhatsApp payment reminders including payment instructions and bank details.
+PRIVACY
+• No account. Your records are stored only on your device.
+• English and Turkish interface; dark, light or system theme.
 
-📊 5. CASHFLOW & FINANCIAL ANALYTICS
-• Monthly collected rent, pending rent, and collection percentage.
-• Total overdue receivables tracking.
-• Multi-currency support (₺ TRY, $ USD, € EUR, £ GBP).
-
-🔒 6. 100% PRIVATE & OFFLINE-FIRST
-• All your financial records stay strictly on your device using local SQLite storage.
-• Fully operational even without an internet connection.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💎 PRO SUBSCRIPTION BENEFITS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Unlimited properties & tenants (Free tier: up to 2 properties).
-• Unlimited watermark-free PDF receipt generation.
-• 100% Ad-free experience.
-• Unrestricted access to all themes and corporate receipt headers.
-
-Download RentLedger Pro today and make landlord management effortless and organized!
+FREE AND PRO
+• Free: 3 PDF receipts (earn more by watching a short video), up to 2 properties, with ads.
+• Pro: unlimited PDF receipts, unlimited properties and tenants, no ads, and no app link on receipts or messages.
 ```
 
 ---
 
-## 🏷️ Google Play Metadata, Kategori ve Etiketler (Tags)
+## Google Play metadata
 
-### 📂 Uygulama Kategorisi
-- **Uygulama veya Oyun:** Uygulama (App)
-- **Birincil Kategori:** **İş / İşletme (Business)** *(Alternatif: Finans / Finance)*
-
-### 🔖 Mağaza Etiketleri (Google Play Tags — En Çok Önerilen 5 Etiket)
-Google Play Console'da **"Etiketleri Yönet" (Manage tags)** butonuna basarak aşağıdaki 5 etiketi seçin (Google Play arama algoritmalarında en yüksek organik dönüşümü sağlar):
-1. **Gayrimenkul (Real estate)**
-2. **İşletme (Business)**
-3. **Kişisel Finans (Personal finance)**
-4. **Verimlilik (Productivity)**
-5. **Faturalandırma (Billing / Invoicing)**
-
----
-
-### ℹ️ Diğer Mağaza Bilgileri
-- **Hedef Kitle:** 18 yaş ve üzeri (Yetişkinler, Ev sahipleri, Emlakçılar, Mülk yöneticileri)
-- **Monetization:** Ücretsiz (AdMob Banner + Rewarded) & In-App Subscriptions (RevenueCat)
-- **Gizlilik Politikası (Privacy Policy URL):** `https://github.com/oguzhanbilgi/rentledger-app/blob/master/PRIVACY_POLICY.md`
-- **Destek / İletişim E-posta:** `oguzhanbilgidev@gmail.com`
+- **Category:** Business (alternative: Finance)
+- **Tags:** Real estate, Business, Personal finance, Productivity
+- **Target audience:** 18+ (landlords, property managers)
+- **Monetization:** Free with ads (Google AdMob banner, interstitial after a shared receipt, rewarded video for an extra receipt) + in-app subscriptions / lifetime purchase (Google Play Billing via RevenueCat)
+- **Privacy policy URL:** `https://oguzhanbilgi.github.io/obappstudio-legal/rentledger-privacy.html` (source text: `docs/index.html`)
+- **Support email:** `oguzhanbilgidev@gmail.com`
+- **Data safety (summary):** App data stays on device (not collected). AdMob: device or other IDs, approximate location, app interactions, diagnostics — collected for advertising/analytics/fraud prevention, consent via UMP. RevenueCat/Play: purchase history and an anonymous app user ID — collected for app functionality (purchase verification). No data sold.

@@ -1,61 +1,49 @@
-import { Alert, Linking, Platform } from 'react-native';
-import { getPreference, setPreference } from './database';
+import * as StoreReview from 'expo-store-review';
+import { Linking, Platform } from 'react-native';
 
-export async function requestStoreReviewIfAppropriate(
-  packageName: string = 'com.mobilefactory.rentledger',
-  appName: string = 'RentLedger Pro',
-  lang: 'tr' | 'en' = 'en'
-): Promise<void> {
+import { factory, getPlayStoreUrl } from '@/config';
+import { getPref, setPref } from '@/services/database';
+
+/**
+ * Resmi uygulama içi değerlendirme (Google Play In-App Review / SKStoreReviewController).
+ * Politika: Kullanıcıyı belirli bir puana yönlendirmeyin ("5 yıldız ver" yasak),
+ * değerlendirmeyi ödülle bağlamayın. Mağaza kotası gösterimi zaten sınırlar.
+ */
+
+const MILESTONE_KEY = 'review_milestones';
+const LAST_PROMPT_KEY = 'review_last_prompt_at';
+const MILESTONES_BEFORE_PROMPT = 2;
+const MIN_DAYS_BETWEEN_PROMPTS = 60;
+
+/** Başarılı bir kullanıcı anından sonra çağırın (ör. 2. PDF paylaşımı). */
+export async function recordReviewMilestone(): Promise<void> {
+  const count = Number(getPref(MILESTONE_KEY) ?? '0') + 1;
+  await setPref(MILESTONE_KEY, String(count));
+  if (count < MILESTONES_BEFORE_PROMPT) return;
+
+  const lastPrompt = Number(getPref(LAST_PROMPT_KEY) ?? '0');
+  const daysSince = (Date.now() - lastPrompt) / 86_400_000;
+  if (lastPrompt > 0 && daysSince < MIN_DAYS_BETWEEN_PROMPTS) return;
+
   try {
-    const hasRated = await getPreference('has_prompted_store_review');
-    if (hasRated === 'true') return;
-
-    const actionCountStr = await getPreference('satisfaction_action_count');
-    const actionCount = (parseInt(actionCountStr || '0', 10) || 0) + 1;
-    await setPreference('satisfaction_action_count', String(actionCount));
-
-    // Prompt after 2 successful rent receipts/reminders
-    if (actionCount !== 2) return;
-
-    await setPreference('has_prompted_store_review', 'true');
-
-    const isTr = lang === 'tr';
-    const title = isTr ? `⭐ ${appName} Uygulamasını Beğendiniz mi?` : `⭐ Enjoying ${appName}?`;
-    const message = isTr
-      ? 'Kira takibi ve resmi makbuz oluşturmanıza yardımcı olduysak, Google Play\'de 5 yıldızlı bir değerlendirme bırakarak bize destek olur musunuz?'
-      : 'If RentLedger Pro helped you manage rents & receipts with ease, a quick 5-star review on Google Play helps us keep adding free features!';
-
-    Alert.alert(
-      title,
-      message,
-      [
-        {
-          text: isTr ? 'Daha Sonra' : 'Not Now',
-          style: 'cancel',
-        },
-        {
-          text: isTr ? '⭐⭐⭐⭐⭐ 5 Yıldız Ver' : '⭐⭐⭐⭐⭐ Rate 5 Stars',
-          onPress: async () => {
-            const playUrl = `https://play.google.com/store/apps/details?id=${packageName}`;
-            const marketUrl = `market://details?id=${packageName}`;
-            try {
-              if (Platform.OS === 'android') {
-                const canOpenMarket = await Linking.canOpenURL(marketUrl);
-                if (canOpenMarket) {
-                  await Linking.openURL(marketUrl);
-                  return;
-                }
-              }
-              await Linking.openURL(playUrl);
-            } catch {
-              await Linking.openURL(playUrl);
-            }
-          },
-        },
-      ],
-      { cancelable: true }
-    );
+    if (await StoreReview.hasAction()) {
+      await setPref(LAST_PROMPT_KEY, String(Date.now()));
+      await StoreReview.requestReview();
+    }
   } catch {
-    // Fail silently
+    // Değerlendirme penceresi açılamazsa akışı bozma.
+  }
+}
+
+/** Ayarlar → "Uygulamayı değerlendir": mağaza sayfasını açar. */
+export async function openStoreListing(): Promise<void> {
+  const url =
+    Platform.OS === 'android'
+      ? `market://details?id=${factory.app.androidPackage}`
+      : StoreReview.storeUrl() ?? getPlayStoreUrl();
+  try {
+    await Linking.openURL(url);
+  } catch {
+    await Linking.openURL(getPlayStoreUrl()).catch(() => {});
   }
 }
