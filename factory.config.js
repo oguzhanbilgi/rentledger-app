@@ -17,7 +17,7 @@ const factory = {
     name: 'RentLedger Pro',
     slug: 'rentledger-app',
     scheme: 'rentledger',
-    version: '1.0.0',
+    version: '1.1.0',
     androidPackage: 'com.mobilefactory.rentledger',
     iosBundleIdentifier: 'com.mobilefactory.rentledger',
     tagline: {
@@ -57,9 +57,13 @@ const factory = {
 
     admob: {
       // Boş bırakılırsa yayın sürümünde reklam gösterilmez (test kimliği ASLA yayına çıkmaz).
-      androidAppId: '',
+      androidAppId: 'ca-app-pub-5256652037805422~9148367243',
       iosAppId: '',
-      android: { banner: '', interstitial: '', rewarded: '' },
+      android: {
+        banner: 'ca-app-pub-5256652037805422/3928578582',
+        interstitial: 'ca-app-pub-5256652037805422/1218654763',
+        rewarded: 'ca-app-pub-5256652037805422/8956795551',
+      },
       ios: { banner: '', interstitial: '', rewarded: '' },
     },
 
