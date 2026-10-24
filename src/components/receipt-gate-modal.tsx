@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, Text, View } from 'react-native';
-import { Crown, Sparkles, Video, X } from 'lucide-react-native';
+import { ActivityIndicator, Modal, Pressable, Share, Text, View } from 'react-native';
+import { Crown, Sparkles, Users, Video, X } from 'lucide-react-native';
 import { AppLanguage } from '@/services/i18n';
 import { showRewardedAdForUnlock } from '@/services/ads';
 import { grantBonusReceipt } from '@/services/database';
@@ -39,6 +39,20 @@ export function ReceiptGateModal({
     } finally {
       setLoadingAd(false);
     }
+  };
+
+  const handleShareColleague = async () => {
+    const shareMsg = isTr
+      ? 'Kira takibi ve resmi tahsilat makbuzlarını telefonumdan 15 saniyede yönetmek için RentLedger Pro kullanıyorum, mülk sahiplerine tavsiye ederim: https://play.google.com/store/apps/details?id=com.mobilefactory.rentledger'
+      : 'I use RentLedger Pro to manage tenant rents & generate official PDF payment receipts in 15 seconds: https://play.google.com/store/apps/details?id=com.mobilefactory.rentledger';
+    try {
+      const res = await Share.share({ message: shareMsg });
+      if (res.action === Share.sharedAction) {
+        await grantBonusReceipt();
+        onUnlocked();
+        onClose();
+      }
+    } catch {}
   };
 
   return (
@@ -94,6 +108,16 @@ export function ReceiptGateModal({
             <Sparkles size={16} color="#0f172a" />
             <Text className="text-xs font-extrabold text-slate-950">
               {isTr ? "Sınırsız Makbuz İçin PRO'ya Geç" : 'Upgrade to PRO for Unlimited'}
+            </Text>
+          </Pressable>
+
+          {/* Option 3: Share with Friend (+1 Free Receipt) */}
+          <Pressable
+            onPress={handleShareColleague}
+            className="w-full py-3 px-4 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 flex-row items-center justify-center gap-2 mt-2.5 active:opacity-80">
+            <Users size={15} color="#10b981" />
+            <Text className="text-xs font-bold text-slate-700 dark:text-emerald-300">
+              {isTr ? '👥 Ev Sahibi Arkadaşına Öner (+1 Makbuz)' : '👥 Share with a Landlord (+1 Receipt)'}
             </Text>
           </Pressable>
         </View>

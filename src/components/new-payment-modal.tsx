@@ -20,6 +20,7 @@ import {
 import { AppLanguage, formatMoney } from '@/services/i18n';
 import { getCurrentPeriodMonthYear, getTodayFormatted, sendPaymentConfirmationWhatsApp } from '@/services/rent-reminders';
 import { generateAndShareReceiptPdf } from '@/services/receipt-pdf-generator';
+import { requestStoreReviewIfAppropriate } from '@/services/store-review';
 
 interface NewPaymentModalProps {
   visible: boolean;
@@ -123,6 +124,9 @@ export function NewPaymentModal({
           text: isTr ? 'WhatsApp Mesajı' : 'WhatsApp Msg',
           onPress: async () => {
             await sendPaymentConfirmationWhatsApp(payment, landlord, lang);
+            setTimeout(() => {
+              requestStoreReviewIfAppropriate('com.mobilefactory.rentledger', 'RentLedger Pro', lang);
+            }, 1500);
           },
         },
         {
@@ -138,6 +142,9 @@ export function NewPaymentModal({
                 lang,
                 isPro,
               });
+              setTimeout(() => {
+                requestStoreReviewIfAppropriate('com.mobilefactory.rentledger', 'RentLedger Pro', lang);
+              }, 1500);
             }
           },
         },

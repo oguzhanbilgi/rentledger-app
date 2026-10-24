@@ -1,5 +1,11 @@
 import * as SQLite from 'expo-sqlite';
 import { Platform } from 'react-native';
+import {
+  CurrencySymbol,
+  detectDeviceCurrency,
+  detectDeviceLanguage,
+  setI18nState,
+} from './i18n';
 
 export type CurrencyCode = 'TRY' | 'USD' | 'EUR' | 'GBP';
 
@@ -146,6 +152,38 @@ export async function initLocalDatabase(): Promise<void> {
     INSERT OR IGNORE INTO landlord_profile (id, fullName, phone, email, iban, bankName, address, companyTitle)
     VALUES (1, '', '', '', '', '', '', '');
   `);
+
+  try {
+    const savedLangRow = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM preferences WHERE key = 'app_lang'"
+    );
+    if (savedLangRow?.value === 'tr' || savedLangRow?.value === 'en') {
+      setI18nState({ lang: savedLangRow.value });
+    } else {
+      const detected = detectDeviceLanguage();
+      setI18nState({ lang: detected });
+      await db.runAsync(
+        "INSERT OR REPLACE INTO preferences (key, value) VALUES ('app_lang', ?)",
+        detected
+      );
+    }
+
+    const savedCurrRow = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM preferences WHERE key = 'app_currency'"
+    );
+    if (savedCurrRow?.value) {
+      setI18nState({ currency: savedCurrRow.value as CurrencySymbol });
+    } else {
+      const detectedCurr = detectDeviceCurrency();
+      setI18nState({ currency: detectedCurr });
+      await db.runAsync(
+        "INSERT OR REPLACE INTO preferences (key, value) VALUES ('app_currency', ?)",
+        detectedCurr
+      );
+    }
+  } catch (prefErr) {
+    console.warn('[Preferences] Could not init language/currency:', prefErr);
+  }
 }
 
 // Properties CRUD

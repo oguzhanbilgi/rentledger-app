@@ -1,3 +1,5 @@
+import { NativeModules } from 'react-native';
+
 export type AppLanguage = 'tr' | 'en';
 export type CurrencySymbol = '₺' | '$' | '€' | '£';
 
@@ -17,9 +19,31 @@ export const CURRENCY_OPTIONS: Array<{
   { code: 'GBP', symbol: '£', label: 'GBP (£)' },
 ];
 
+export function detectDeviceLanguage(): AppLanguage {
+  try {
+    const locale =
+      Intl.DateTimeFormat().resolvedOptions().locale ||
+      NativeModules?.I18nManager?.localeIdentifier ||
+      '';
+    if (typeof locale === 'string' && locale.toLowerCase().startsWith('tr')) {
+      return 'tr';
+    }
+  } catch {
+    // fallback
+  }
+  return 'en';
+}
+
+export function detectDeviceCurrency(): CurrencySymbol {
+  return detectDeviceLanguage() === 'tr' ? '₺' : '$';
+}
+
+const initialLang = detectDeviceLanguage();
+const initialCurrency = initialLang === 'tr' ? '₺' : '$';
+
 let currentI18nState: I18nState = {
-  lang: 'en',
-  currency: '$',
+  lang: initialLang,
+  currency: initialCurrency,
 };
 
 type I18nListener = (state: I18nState) => void;

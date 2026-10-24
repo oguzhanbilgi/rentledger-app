@@ -390,7 +390,7 @@ export function buildReceiptHtml(options: GenerateReceiptPdfOptions): string {
 
     <div class="footer-watermark">
       ${!isPro
-        ? 'RentLedger Pro — Dijital Kira & Mülk Takip Uygulaması ile oluşturuldu.'
+        ? `Created with <strong>RentLedger Pro</strong> • <a href="https://play.google.com/store/apps/details?id=com.mobilefactory.rentledger" style="color:#059669;text-decoration:none;font-weight:700;">Get it free on Google Play</a>`
         : `Resmi Tahsilat Makbuzu • Belge Doğrulama Kodu: RLP-${payment.id.slice(0, 8).toUpperCase()}`}
     </div>
   </div>

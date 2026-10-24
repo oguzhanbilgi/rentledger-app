@@ -129,17 +129,22 @@ export async function sendRentReminderWhatsApp(
         : `\n\n📌 *Payment Details:*\nBank: *${landlord.bankName || 'Bank'}*\nIBAN: *${landlord.iban}*\nBeneficiary: *${landlord.fullName || landlordName}*`;
   }
 
+  const appFooter =
+    lang === 'tr'
+      ? `\n\n🏠 _RentLedger Pro ile Gönderildi_\n📲 https://play.google.com/store/apps/details?id=com.mobilefactory.rentledger`
+      : `\n\n🏠 _Sent via RentLedger Pro App_\n📲 https://play.google.com/store/apps/details?id=com.mobilefactory.rentledger`;
+
   let message = '';
   if (lang === 'tr') {
     if (alert.status === 'overdue') {
-      message = `Merhaba *${tenant.name}*,\n\n*${propName}* için *${period}* dönemi kira ödemenizin (*${rentFormatted}*) vadesi üzerinden ${Math.abs(alert.daysRemaining)} gün geçmiştir.\n\nMüsait olduğunuzda ödemenizi iletmenizi rica ederiz.${ibanBlock}\n\nİyi günler dileriz,\n*${landlordName}*`;
+      message = `Merhaba *${tenant.name}*,\n\n*${propName}* için *${period}* dönemi kira ödemenizin (*${rentFormatted}*) vadesi üzerinden ${Math.abs(alert.daysRemaining)} gün geçmiştir.\n\nMüsait olduğunuzda ödemenizi iletmenizi rica ederiz.${ibanBlock}\n\nİyi günler dileriz,\n*${landlordName}*${appFooter}`;
     } else if (alert.status === 'due_today') {
-      message = `Merhaba *${tenant.name}*,\n\n*${propName}* için *${period}* dönemi kira ödeme gününüz (*${rentFormatted}*) bugündür.${ibanBlock}\n\nÖdemeniz sonrasında resmi dijital makbuzunuz iletilecektir. Teşekkürler,\n*${landlordName}*`;
+      message = `Merhaba *${tenant.name}*,\n\n*${propName}* için *${period}* dönemi kira ödeme gününüz (*${rentFormatted}*) bugündür.${ibanBlock}\n\nÖdemeniz sonrasında resmi dijital makbuzunuz iletilecektir. Teşekkürler,\n*${landlordName}*${appFooter}`;
     } else {
-      message = `Merhaba *${tenant.name}*,\n\n*${propName}* için *${period}* dönemi kira ödemenizin (*${rentFormatted}*) vadesine ${alert.daysRemaining} gün kalmıştır.${ibanBlock}\n\nİyi günler dileriz,\n*${landlordName}*`;
+      message = `Merhaba *${tenant.name}*,\n\n*${propName}* için *${period}* dönemi kira ödemenizin (*${rentFormatted}*) vadesine ${alert.daysRemaining} gün kalmıştır.${ibanBlock}\n\nİyi günler dileriz,\n*${landlordName}*${appFooter}`;
     }
   } else {
-    message = `Hello *${tenant.name}*,\n\nThis is a friendly reminder regarding your rent of *${rentFormatted}* for *${propName}* (${period}).${ibanBlock}\n\nThank you,\n*${landlordName}*`;
+    message = `Hello *${tenant.name}*,\n\nThis is a friendly reminder regarding your rent of *${rentFormatted}* for *${propName}* (${period}).${ibanBlock}\n\nThank you,\n*${landlordName}*${appFooter}`;
   }
 
   const cleanPhone = tenant.phone.replace(/[^0-9]/g, '');
@@ -171,10 +176,15 @@ export async function sendPaymentConfirmationWhatsApp(
       ? lang === 'tr' ? 'Banka Havale/EFT' : 'Bank Transfer'
       : lang === 'tr' ? 'Nakit Tahsilat' : 'Cash';
 
+  const appFooter =
+    lang === 'tr'
+      ? `\n\n🏠 _RentLedger Pro ile Gönderildi_\n📲 https://play.google.com/store/apps/details?id=com.mobilefactory.rentledger`
+      : `\n\n🏠 _Sent via RentLedger Pro App_\n📲 https://play.google.com/store/apps/details?id=com.mobilefactory.rentledger`;
+
   const message =
     lang === 'tr'
-      ? `Sayın *${payment.tenantName}*,\n\n*${payment.propertyName}* taşınmazı için *${payment.periodMonthYear}* dönemi kira bedeli olan *${amountFormatted}* tutarındaki ödemeniz *${payment.paymentDate}* tarihinde (${methodText}) başarıyla tahsil edilmiştir.\n\nMakbuz No: *${payment.receiptNo}*\n\nTeşekkür eder, iyi günler dileriz.\n*${landlordName}*`
-      : `Dear *${payment.tenantName}*,\n\nYour rent payment of *${amountFormatted}* for *${payment.propertyName}* (${payment.periodMonthYear}) has been received on *${payment.paymentDate}* via ${methodText}.\n\nReceipt No: *${payment.receiptNo}*\n\nThank you,\n*${landlordName}*`;
+      ? `Sayın *${payment.tenantName}*,\n\n*${payment.propertyName}* taşınmazı için *${payment.periodMonthYear}* dönemi kira bedeli olan *${amountFormatted}* tutarındaki ödemeniz *${payment.paymentDate}* tarihinde (${methodText}) başarıyla tahsil edilmiştir.\n\nMakbuz No: *${payment.receiptNo}*\n\nTeşekkür eder, iyi günler dileriz.\n*${landlordName}*${appFooter}`
+      : `Dear *${payment.tenantName}*,\n\nYour rent payment of *${amountFormatted}* for *${payment.propertyName}* (${payment.periodMonthYear}) has been received on *${payment.paymentDate}* via ${methodText}.\n\nReceipt No: *${payment.receiptNo}*\n\nThank you,\n*${landlordName}*${appFooter}`;
 
   const encoded = encodeURIComponent(message);
   const whatsappUrl = `whatsapp://send?text=${encoded}`;
