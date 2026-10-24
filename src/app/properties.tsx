@@ -1,56 +1,29 @@
-import React, { useCallback, useState } from 'react';
-import {
-  Alert,
-  Linking,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Text,
-  View,
-} from 'react-native';
+import { useCallback, useState } from 'react';
+import { Alert, Linking, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import { useColorScheme } from 'nativewind';
 import { useFocusEffect } from 'expo-router';
-import {
-  Building2,
-  Calendar,
-  DollarSign,
-  MessageCircle,
-  Phone,
-  Plus,
-  ShieldAlert,
-  Sparkles,
-  Trash2,
-  User,
-} from 'lucide-react-native';
+import { Building2, Calendar, Crown, MessageCircle, Phone, Plus, Trash2, User } from 'lucide-react-native';
 
-import {
-  PropertyRecord,
-  TenantRecord,
-  deleteProperty,
-  getProperties,
-  getTenants,
-  initLocalDatabase,
-} from '@/services/database';
-import { AppLanguage, formatMoney, getI18nState, t } from '@/services/i18n';
-import {
-  getCurrentSubscriptionState,
-  SubscriptionState,
-} from '@/services/revenuecat';
-import { SmartAdBanner } from '@/components/smart-ad-banner';
 import { NewTenantPropertyModal } from '@/components/new-tenant-property-modal';
-import { PaywallModal } from '@/components/paywall-modal';
-import { requestInterstitialAdWithUpsell } from '@/components/periodic-ad-modal';
+import { RentPaywall } from '@/components/rent-paywall';
+import { SmartAdBanner } from '@/components/smart-ad-banner';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { factory } from '@/config';
+import { useThemeColors } from '@/constants/theme';
+import { triggerHaptic } from '@/services/haptics';
+import { formatMoney, useI18n } from '@/services/i18n';
+import { propertyTypeLabel } from '@/services/rent-format';
+import { openTenantChat } from '@/services/rent-reminders';
+import { deleteProperty, getProperties, getTenants } from '@/services/rentledger-data';
+import { FREE_PROPERTY_LIMIT, type PropertyRecord, type TenantRecord } from '@/services/rentledger-types';
+import { useSubscription } from '@/services/revenuecat';
 
 export default function PropertiesScreen() {
-  const { colorScheme } = useColorScheme();
-  const isDark = colorScheme === 'dark';
-
-  const [i18n] = useState(getI18nState());
-  const [subState, setSubState] = useState<SubscriptionState>(
-    getCurrentSubscriptionState()
-  );
+  const { t, language } = useI18n();
+  const colors = useThemeColors();
+  // Abonelik durumu canlı izlenir: satın alma sonrası limit ve reklam anında kalkar.
+  const { isPro } = useSubscription();
 
   const [properties, setProperties] = useState<PropertyRecord[]>([]);
   const [tenants, setTenants] = useState<TenantRecord[]>([]);
@@ -58,272 +31,192 @@ export default function PropertiesScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
 
-  const isTr = i18n.lang === 'tr';
-
-  const loadData = async () => {
-    await initLocalDatabase();
+  const reload = useCallback(async () => {
     const [props, tens] = await Promise.all([getProperties(), getTenants()]);
     setProperties(props);
     setTenants(tens);
-  };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [])
+      void reload();
+    }, [reload])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await reload();
     setRefreshing(false);
   };
 
-  const handleDeleteProperty = (property: PropertyRecord) => {
-    Alert.alert(
-      isTr ? 'Mülkü Sil' : 'Delete Property',
-      isTr
-        ? `"${property.name}" mülkünü ve bu mülke bağlı kiracıyı silmek istediğinizden emin misiniz?`
-        : `Delete "${property.name}" and associated tenant?`,
-      [
-        { text: isTr ? 'İptal' : 'Cancel', style: 'cancel' },
-        {
-          text: isTr ? 'Sil' : 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteProperty(property.id);
-            await loadData();
-          },
+  const handleDelete = (property: PropertyRecord) => {
+    triggerHaptic.warning();
+    Alert.alert(t('deletePropertyTitle'), t('deletePropertyBody', { name: property.name }), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('delete'),
+        style: 'destructive',
+        onPress: async () => {
+          await deleteProperty(property.id);
+          await reload();
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleCall = (phone: string) => {
-    if (!phone) return;
-    Linking.openURL(`tel:${phone.replace(/[^0-9]/g, '')}`).catch(() => {});
-  };
-
-  const handleWhatsApp = (phone: string, tenantName: string) => {
-    if (!phone) return;
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const text = isTr
-      ? `Merhaba ${tenantName}, müsait olduğunuzda görüşebilir miyiz?`
-      : `Hello ${tenantName}, are you available for a quick chat?`;
-    Linking.openURL(`whatsapp://send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`).catch(() => {});
+    const dial = phone.replace(/[^\d+]/g, '');
+    if (dial) Linking.openURL(`tel:${dial}`).catch(() => {});
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-[#090d16]">
-      <StatusBar style={isDark ? 'light' : 'dark'} />
-
+    <SafeAreaView className="flex-1 bg-canvas dark:bg-canvas-dark" edges={['top']}>
       <ScrollView
-        className="flex-1 px-4"
-        contentContainerStyle={{ paddingBottom: 115, paddingTop: 12 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#10b981" />
-        }>
-        {/* Header */}
-        <View className="flex-row items-center justify-between mb-4">
-          <View>
-            <Text className="text-xs font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
-              RentLedger Pro
-            </Text>
-            <Text className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
-              {t('propertiesTitle', i18n.lang)}
-            </Text>
-            <Text className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              {t('propertiesSubtitle', i18n.lang)}
-            </Text>
+        className="flex-1"
+        contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}>
+        <View className="flex-row items-start justify-between gap-3">
+          <View className="flex-1">
+            <Text className="text-xs font-bold uppercase tracking-widest text-accent">{factory.app.name}</Text>
+            <Text className="mt-0.5 text-[26px] font-extrabold text-ink dark:text-ink-dark">{t('propertiesTitle')}</Text>
+            <Text className="mt-0.5 text-sm text-muted dark:text-muted-dark">{t('propertiesSubtitle')}</Text>
           </View>
-
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('propertyModalTitle')}
             onPress={() => setModalVisible(true)}
-            className="py-2.5 px-3.5 rounded-2xl bg-emerald-600 active:opacity-85 flex-row items-center gap-1.5 shadow-md">
-            <Plus size={16} color="#ffffff" />
-            <Text className="text-xs font-extrabold text-white">
-              {isTr ? 'Yeni Mülk' : 'Add Property'}
-            </Text>
+            className="min-h-[40px] flex-row items-center gap-1.5 rounded-2xl bg-primary px-3.5 active:opacity-80">
+            <Plus size={16} color={colors.onBrand} />
+            <Text className="text-xs font-extrabold text-on-brand">{t('addPropertyShort')}</Text>
           </Pressable>
         </View>
 
-        {/* Mülk & Kiracı Kotası (Free / Pro) */}
-        {!subState.isPro && (
-          <View className="rounded-2xl p-4 mb-4 bg-amber-500/10 border border-amber-500/30 flex-row items-center justify-between">
-            <View className="flex-1 pr-3">
-              <Text className="text-xs font-extrabold text-amber-800 dark:text-amber-300">
-                {isTr ? `Ücretsiz Mülk Kotası: ${properties.length}/2 Mülk` : `Free Property Limit: ${properties.length}/2 Units`}
+        {!isPro ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setPaywallVisible(true)}
+            className="mt-4 flex-row items-center justify-between gap-3 rounded-2xl border border-warning/40 bg-warning/10 p-4 active:opacity-80">
+            <View className="flex-1">
+              <Text className="text-sm font-bold text-ink dark:text-ink-dark">
+                {t('propertyLimitBanner', { used: properties.length, limit: FREE_PROPERTY_LIMIT })}
               </Text>
-              <Text className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-0.5">
-                {isTr ? 'Sınırsız mülk ve kiracı eklemek için PRO pakete geçin.' : 'Upgrade to PRO for unlimited properties.'}
-              </Text>
+              <Text className="mt-0.5 text-xs text-muted dark:text-muted-dark">{t('propertyLimitHint')}</Text>
             </View>
-            <Pressable
-              onPress={() => setPaywallVisible(true)}
-              className="py-1.5 px-3 rounded-xl bg-amber-400 active:opacity-85 flex-row items-center gap-1">
-              <Sparkles size={12} color="#0f172a" />
-              <Text className="text-[11px] font-black text-slate-950">PRO</Text>
-            </Pressable>
-          </View>
-        )}
+            <View className="flex-row items-center gap-1 rounded-full bg-warning/20 px-2.5 py-1">
+              <Crown size={12} color={colors.warning} />
+              <Text className="text-[11px] font-extrabold text-warning">{t('paywallBadge')}</Text>
+            </View>
+          </Pressable>
+        ) : null}
 
-        {/* Mülk Listesi */}
         {properties.length === 0 ? (
-          <View className="p-8 rounded-3xl bg-white dark:bg-[#131b2e] border border-dashed border-slate-300 dark:border-slate-800 items-center justify-center my-6">
-            <View className="w-14 h-14 rounded-3xl bg-emerald-500/10 items-center justify-center mb-3">
-              <Building2 size={28} color="#10b981" />
+          <Card className="mt-6 items-center py-8">
+            <View className="h-14 w-14 items-center justify-center rounded-2xl bg-accent/10">
+              <Building2 size={28} color={colors.accent} />
             </View>
-            <Text className="text-base font-extrabold text-slate-900 dark:text-white mb-1 text-center">
-              {t('noPropertiesYet', i18n.lang)}
-            </Text>
-            <Text className="text-xs text-slate-500 dark:text-slate-400 text-center mb-5 px-6 leading-5">
-              {t('noPropertiesSub', i18n.lang)}
-            </Text>
-            <Pressable
+            <Text className="mt-3 text-center text-base font-bold text-ink dark:text-ink-dark">{t('noPropertiesYet')}</Text>
+            <Text className="mt-1 px-4 text-center text-sm text-muted dark:text-muted-dark">{t('noPropertiesSub')}</Text>
+            <Button
+              label={t('addFirstProperty')}
+              icon={<Plus size={18} color={colors.onBrand} />}
               onPress={() => setModalVisible(true)}
-              className="py-3 px-5 rounded-2xl bg-emerald-600 flex-row items-center gap-2 active:opacity-85 shadow-md">
-              <Plus size={18} color="#ffffff" />
-              <Text className="text-xs font-extrabold text-white">
-                {isTr ? 'İlk Mülkünüzü Ekleyin' : 'Add Your First Property'}
-              </Text>
-            </Pressable>
-          </View>
+              className="mt-5 self-stretch"
+            />
+          </Card>
         ) : (
-          <View className="gap-3.5 mb-6">
-            {properties.map((prop) => {
-              const tenant = tenants.find((t) => t.propertyId === prop.id);
-              const typeLabel =
-                prop.propertyType === 'apartment' ? (isTr ? 'Daire' : 'Apartment')
-                : prop.propertyType === 'shop' ? (isTr ? 'Dükkan' : 'Shop')
-                : prop.propertyType === 'office' ? (isTr ? 'Ofis' : 'Office')
-                : (isTr ? 'Müstakil' : 'House');
-
+          <View className="mt-4 gap-3">
+            {properties.map((property) => {
+              const tenant = tenants.find((item) => item.propertyId === property.id);
               return (
-                <View
-                  key={prop.id}
-                  className="rounded-3xl p-5 bg-white dark:bg-[#131b2e] border border-slate-200/80 dark:border-slate-800/90 shadow-sm">
-                  {/* Property Header */}
-                  <View className="flex-row items-start justify-between mb-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-                    <View className="flex-1 pr-2">
-                      <View className="flex-row items-center gap-2 flex-wrap mb-0.5">
-                        <Text className="text-base font-black text-slate-900 dark:text-white">
-                          {prop.name}
+                <Card key={property.id}>
+                  <View className="flex-row items-start justify-between gap-3 border-b border-line pb-3 dark:border-line-dark">
+                    <View className="flex-1">
+                      <View className="flex-row flex-wrap items-center gap-2">
+                        <Text className="text-base font-extrabold text-ink dark:text-ink-dark">{property.name}</Text>
+                        <Text className="overflow-hidden rounded-md bg-accent/10 px-2 py-0.5 text-[11px] font-bold text-accent">
+                          {propertyTypeLabel(property.propertyType, language)}
                         </Text>
-                        <View className="py-0.5 px-2 rounded-md bg-emerald-500/10 border border-emerald-500/20">
-                          <Text className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                            {typeLabel}
-                          </Text>
-                        </View>
                       </View>
-                      <Text className="text-xs text-slate-500 dark:text-slate-400">
-                        {prop.address}
-                      </Text>
+                      <Text className="mt-0.5 text-xs text-muted dark:text-muted-dark">{property.address}</Text>
                     </View>
-
                     <Pressable
-                      onPress={() => handleDeleteProperty(prop)}
-                      className="p-2 rounded-xl bg-rose-500/10 active:opacity-70">
-                      <Trash2 size={16} color="#f43f5e" />
+                      accessibilityRole="button"
+                      accessibilityLabel={t('delete')}
+                      onPress={() => handleDelete(property)}
+                      hitSlop={6}
+                      className="h-9 w-9 items-center justify-center rounded-xl bg-danger/10 active:opacity-70">
+                      <Trash2 size={16} color={colors.danger} />
                     </Pressable>
                   </View>
 
-                  {/* Tenant Details Card inside Property */}
                   {tenant ? (
-                    <View className="rounded-2xl p-3.5 bg-slate-50 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800/80">
-                      <View className="flex-row items-center justify-between mb-2">
-                        <View className="flex-row items-center gap-2">
-                          <User size={15} color="#10b981" />
-                          <Text className="text-sm font-extrabold text-slate-900 dark:text-white">
-                            {tenant.name}
-                          </Text>
+                    <View className="mt-3">
+                      <View className="flex-row items-center justify-between gap-3">
+                        <View className="flex-1 flex-row items-center gap-2">
+                          <User size={15} color={colors.accent} />
+                          <Text className="text-[15px] font-bold text-ink dark:text-ink-dark">{tenant.name}</Text>
                         </View>
-                        <Text className="text-sm font-black text-emerald-600 dark:text-emerald-400">
-                          {formatMoney(tenant.rentAmount, tenant.currency)}
-                          <Text className="text-[11px] font-normal text-slate-400"> / ay</Text>
+                        <Text className="text-[15px] font-extrabold text-accent">
+                          {formatMoney(tenant.rentAmount, tenant.currency, language)}
+                          <Text className="text-xs font-normal text-muted dark:text-muted-dark"> {t('periodMonth')}</Text>
                         </Text>
                       </View>
 
-                      <View className="flex-row items-center justify-between text-xs text-slate-500 mb-3">
-                        <View className="flex-row items-center gap-1">
-                          <Calendar size={13} color="#64748b" />
-                          <Text className="text-xs text-slate-500 dark:text-slate-400">
-                            {isTr ? `Her ayın ${tenant.paymentDueDay}'i` : `Due on ${tenant.paymentDueDay}th`}
+                      <View className="mt-2 flex-row flex-wrap items-center justify-between gap-2">
+                        <View className="flex-row items-center gap-1.5">
+                          <Calendar size={13} color={colors.muted} />
+                          <Text className="text-xs text-muted dark:text-muted-dark">
+                            {t('dueDayOfMonth', { day: tenant.paymentDueDay })}
                           </Text>
                         </View>
-
-                        {tenant.depositAmount > 0 && (
-                          <Text className="text-[11px] text-slate-400">
-                            Depozito: {formatMoney(tenant.depositAmount, tenant.currency)}
+                        {tenant.depositAmount > 0 ? (
+                          <Text className="text-xs text-muted dark:text-muted-dark">
+                            {t('depositLabel', { amount: formatMoney(tenant.depositAmount, tenant.currency, language) })}
                           </Text>
-                        )}
+                        ) : null}
                       </View>
 
-                      {/* Contact Buttons */}
-                      <View className="flex-row gap-2 pt-2 border-t border-slate-200/50 dark:border-slate-800">
-                        {tenant.phone ? (
-                          <>
-                            <Pressable
-                              onPress={() => handleCall(tenant.phone)}
-                              className="flex-1 py-2 px-3 rounded-xl bg-slate-200 dark:bg-slate-800 flex-row items-center justify-center gap-1.5 active:opacity-75">
-                              <Phone size={13} color="#64748b" />
-                              <Text className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                {t('callTenant', i18n.lang)}
-                              </Text>
-                            </Pressable>
-
-                            <Pressable
-                              onPress={() => handleWhatsApp(tenant.phone, tenant.name)}
-                              className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 flex-row items-center justify-center gap-1.5 active:opacity-85 shadow-sm">
-                              <MessageCircle size={13} color="#ffffff" />
-                              <Text className="text-xs font-bold text-white">
-                                {t('whatsappTenant', i18n.lang)}
-                              </Text>
-                            </Pressable>
-                          </>
-                        ) : (
-                          <Text className="text-xs text-slate-400 italic">
-                            {isTr ? 'Telefon numarası kaydedilmedi' : 'No phone number saved'}
-                          </Text>
-                        )}
-                      </View>
+                      {tenant.phone ? (
+                        <View className="mt-3 flex-row gap-2">
+                          <Button
+                            label={t('callTenant')}
+                            variant="secondary"
+                            icon={<Phone size={15} color={colors.ink} />}
+                            onPress={() => handleCall(tenant.phone)}
+                            className="flex-1"
+                          />
+                          <Button
+                            label={t('whatsappTenant')}
+                            variant="secondary"
+                            icon={<MessageCircle size={15} color={colors.accent} />}
+                            onPress={() => void openTenantChat(tenant, language)}
+                            className="flex-1"
+                          />
+                        </View>
+                      ) : (
+                        <Text className="mt-3 text-xs italic text-muted dark:text-muted-dark">{t('noPhone')}</Text>
+                      )}
                     </View>
                   ) : (
-                    <Text className="text-xs text-slate-400 italic">
-                      {isTr ? 'Bu mülke atanmış aktif kiracı yok.' : 'No active tenant assigned.'}
-                    </Text>
+                    <Text className="mt-3 text-xs italic text-muted dark:text-muted-dark">{t('noTenant')}</Text>
                   )}
-                </View>
+                </Card>
               );
             })}
           </View>
         )}
-
-        {/* Banner Ad Area */}
-        <View className="mb-4">
-          <SmartAdBanner isPro={subState.isPro} onUpgradePress={() => setPaywallVisible(true)} />
-        </View>
       </ScrollView>
 
-      {/* Modals */}
+      <SmartAdBanner />
+
       <NewTenantPropertyModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-        onSaved={async () => {
-          await loadData();
-          requestInterstitialAdWithUpsell();
-        }}
-        lang={i18n.lang}
-        isPro={subState.isPro}
+        onSaved={() => void reload()}
         currentPropertyCount={properties.length}
         onOpenPaywall={() => setPaywallVisible(true)}
       />
-
-      <PaywallModal
-        visible={paywallVisible}
-        onClose={() => setPaywallVisible(false)}
-        onPurchaseSuccess={(newState) => setSubState(newState)}
-      />
+      <RentPaywall visible={paywallVisible} onClose={() => setPaywallVisible(false)} />
     </SafeAreaView>
   );
 }

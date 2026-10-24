@@ -1,191 +1,186 @@
-import { Linking, Share } from 'react-native';
-import { LandlordProfile, PaymentRecord, PropertyRecord, TenantRecord } from './database';
-import { AppLanguage, formatMoney } from './i18n';
+import { factory, getPlayStoreUrl } from '@/config';
+import { formatMoney, t, type AppLanguage } from '@/services/i18n';
+import {
+  displayPaymentDate,
+  displayPeriod,
+  formatPeriod,
+  paymentMethodLabel,
+  toPeriodKey,
+} from '@/services/rent-format';
+import type {
+  LandlordProfile,
+  PaymentRecord,
+  PropertyRecord,
+  TenantRecord,
+} from '@/services/rentledger-types';
+import { openWhatsApp } from '@/services/whatsapp';
+
+/**
+ * Vade uyarıları (uygulama içi "vadesi gelen / geciken" listesi) ve WhatsApp mesajları.
+ * Bir kiracının bu ayki kirası, o döneme (`periodKey`) kaydedilmiş tahsilatların
+ * toplamı kira bedelini karşılıyorsa ödenmiş sayılır.
+ */
+
+export type DueStatus = 'overdue' | 'due_today' | 'upcoming';
 
 export interface RentDueAlert {
   tenant: TenantRecord;
   property?: PropertyRecord;
+  periodKey: string;
   dueDay: number;
-  daysRemaining: number; // < 0 overdue, 0 today, > 0 upcoming
-  status: 'overdue' | 'due_today' | 'upcoming';
-  statusTextTr: string;
-  statusTextEn: string;
+  /** < 0 gecikmiş, 0 bugün, > 0 kalan gün. */
+  daysRemaining: number;
+  status: DueStatus;
+  /** Bu dönem için kalan tutar (kısmi ödeme düşülmüş). */
+  amountDue: number;
 }
 
-export function getTodayFormatted(): string {
-  const now = new Date();
-  const dd = String(now.getDate()).padStart(2, '0');
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const yyyy = now.getFullYear();
-  return `${dd}.${mm}.${yyyy}`;
-}
+const CENT = 0.005;
 
-export function getCurrentPeriodMonthYear(lang: AppLanguage = 'tr'): string {
-  const now = new Date();
-  const monthsTr = [
-    'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
-  ];
-  const monthsEn = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-  const monthName = lang === 'tr' ? monthsTr[now.getMonth()] : monthsEn[now.getMonth()];
-  return `${monthName} ${now.getFullYear()}`;
+export function paidForPeriod(payments: PaymentRecord[], tenantId: string, periodKey: string): number {
+  return payments
+    .filter((p) => p.tenantId === tenantId && p.periodKey === periodKey && p.status !== 'pending')
+    .reduce((sum, p) => sum + (p.amount || 0), 0);
 }
 
 export function getRentDueAlerts(
   tenants: TenantRecord[],
   properties: PropertyRecord[],
   payments: PaymentRecord[],
-  withinDays = 5
+  withinDays = 5,
+  now: Date = new Date()
 ): RentDueAlert[] {
-  const now = new Date();
-  const currentDay = now.getDate();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth(); // 0-11
-
+  const periodKey = toPeriodKey(now);
+  const today = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const alerts: RentDueAlert[] = [];
 
   for (const tenant of tenants) {
-    if (tenant.status !== 'active') continue;
+    if (tenant.status !== 'active' || !(tenant.rentAmount > 0)) continue;
+    const amountDue = tenant.rentAmount - paidForPeriod(payments, tenant.id, periodKey);
+    if (amountDue <= CENT) continue;
 
-    const prop = properties.find((p) => p.id === tenant.propertyId);
-    const dueDay = Math.min(tenant.paymentDueDay || 1, 28);
+    const dueDay = Math.min(Math.max(Math.trunc(tenant.paymentDueDay) || 1, 1), daysInMonth);
+    const diff = dueDay - today;
+    if (diff > withinDays) continue;
 
-    // Check if tenant already paid for current month
-    const hasPaidCurrentMonth = payments.some((p) => {
-      if (p.tenantId !== tenant.id) return false;
-      // Check if payment was made in this month or marked for this period
-      const pDate = new Date(p.createdAt);
-      return (
-        p.status === 'paid' &&
-        pDate.getFullYear() === currentYear &&
-        pDate.getMonth() === currentMonth
-      );
+    alerts.push({
+      tenant,
+      property: properties.find((p) => p.id === tenant.propertyId),
+      periodKey,
+      dueDay,
+      daysRemaining: diff,
+      status: diff < 0 ? 'overdue' : diff === 0 ? 'due_today' : 'upcoming',
+      amountDue,
     });
-
-    if (hasPaidCurrentMonth) continue;
-
-    const diffDays = dueDay - currentDay;
-
-    if (diffDays < 0) {
-      // Overdue
-      const daysAgo = Math.abs(diffDays);
-      alerts.push({
-        tenant,
-        property: prop,
-        dueDay,
-        daysRemaining: diffDays,
-        status: 'overdue',
-        statusTextTr: `${daysAgo} gün gecikmede!`,
-        statusTextEn: `${daysAgo} day(s) overdue!`,
-      });
-    } else if (diffDays === 0) {
-      // Due Today
-      alerts.push({
-        tenant,
-        property: prop,
-        dueDay,
-        daysRemaining: 0,
-        status: 'due_today',
-        statusTextTr: 'Bugün kira günü!',
-        statusTextEn: 'Rent due today!',
-      });
-    } else if (diffDays <= withinDays) {
-      // Upcoming
-      alerts.push({
-        tenant,
-        property: prop,
-        dueDay,
-        daysRemaining: diffDays,
-        status: 'upcoming',
-        statusTextTr: `${diffDays} gün kaldı (Ayın ${dueDay}'i)`,
-        statusTextEn: `${diffDays} day(s) left (Due on ${dueDay}th)`,
-      });
-    }
   }
 
-  // Sort by priority: overdue first, then due today, then upcoming
   return alerts.sort((a, b) => a.daysRemaining - b.daysRemaining);
 }
+
+export function dueStatusLabel(alert: RentDueAlert, language?: AppLanguage): string {
+  if (alert.status === 'overdue') return t('dueOverdue', { count: Math.abs(alert.daysRemaining) }, language);
+  if (alert.status === 'due_today') return t('dueToday', undefined, language);
+  return t('dueInDays', { count: alert.daysRemaining }, language);
+}
+
+// ----------------------------- Mesaj metinleri -----------------------------
+
+export interface MessageOptions {
+  language: AppLanguage;
+  /** Ücretsiz kullanıcının mesajı mağaza bağlantısıyla biter; Pro'da bağlantı yok. */
+  isPro: boolean;
+}
+
+function landlordSignature(landlord: LandlordProfile, language: AppLanguage): string {
+  return landlord.fullName.trim() || landlord.companyTitle.trim() || t('waSignatureFallback', undefined, language);
+}
+
+function bankBlock(landlord: LandlordProfile, language: AppLanguage): string {
+  const iban = landlord.iban.trim();
+  if (!iban) return '';
+  const lines = [t('waBankHeader', undefined, language)];
+  const bank = landlord.bankName.trim();
+  if (bank) lines.push(t('waBankName', { bank }, language));
+  lines.push(t('waIban', { iban }, language));
+  const beneficiary = landlord.companyTitle.trim() || landlord.fullName.trim();
+  if (beneficiary) lines.push(t('waBeneficiary', { name: beneficiary }, language));
+  return `\n\n${lines.join('\n')}`;
+}
+
+function withFooter(message: string, { language, isPro }: MessageOptions): string {
+  if (isPro) return message;
+  return `${message}\n\n${t('waFooter', { app: factory.app.name, url: getPlayStoreUrl() }, language)}`;
+}
+
+export function buildReminderMessage(
+  alert: RentDueAlert,
+  landlord: LandlordProfile,
+  options: MessageOptions
+): string {
+  const { language } = options;
+  const params = {
+    tenant: alert.tenant.name,
+    property: alert.property?.name || alert.tenant.propertyName || t('unknownProperty', undefined, language),
+    period: formatPeriod(alert.periodKey, language),
+    amount: formatMoney(alert.amountDue, alert.tenant.currency, language),
+    days: Math.abs(alert.daysRemaining),
+    bank: bankBlock(landlord, language),
+    landlord: landlordSignature(landlord, language),
+  };
+  const key =
+    alert.status === 'overdue'
+      ? 'waReminderOverdue'
+      : alert.status === 'due_today'
+        ? 'waReminderToday'
+        : 'waReminderUpcoming';
+  return withFooter(t(key, params, language), options);
+}
+
+export function buildConfirmationMessage(
+  payment: PaymentRecord,
+  landlord: LandlordProfile,
+  options: MessageOptions
+): string {
+  const { language } = options;
+  const message = t(
+    'waConfirmation',
+    {
+      tenant: payment.tenantName,
+      property: payment.propertyName,
+      period: displayPeriod(payment, language),
+      amount: formatMoney(payment.amount, payment.currency, language),
+      date: displayPaymentDate(payment.paymentDate, language),
+      method: paymentMethodLabel(payment.paymentMethod, language).toLocaleLowerCase(
+        language === 'tr' ? 'tr-TR' : 'en-US'
+      ),
+      receiptNo: payment.receiptNo,
+      landlord: landlordSignature(landlord, language),
+    },
+    language
+  );
+  return withFooter(message, options);
+}
+
+// ----------------------------- Gönderim -----------------------------
 
 export async function sendRentReminderWhatsApp(
   alert: RentDueAlert,
   landlord: LandlordProfile,
-  lang: AppLanguage = 'tr'
+  options: MessageOptions
 ): Promise<void> {
-  const tenant = alert.tenant;
-  const propName = alert.property?.name || 'Kiralık Mülk';
-  const rentFormatted = formatMoney(tenant.rentAmount, tenant.currency);
-  const period = getCurrentPeriodMonthYear(lang);
-  const landlordName = landlord.fullName?.trim() || 'Ev Sahibi / Yönetim';
-
-  let ibanBlock = '';
-  if (landlord.iban?.trim()) {
-    ibanBlock =
-      lang === 'tr'
-        ? `\n\n📌 *Ödeme Bilgileri:*\nBanka: *${landlord.bankName || 'Banka'}*\nIBAN: *${landlord.iban}*\nAlıcı: *${landlord.fullName || landlordName}*`
-        : `\n\n📌 *Payment Details:*\nBank: *${landlord.bankName || 'Bank'}*\nIBAN: *${landlord.iban}*\nBeneficiary: *${landlord.fullName || landlordName}*`;
-  }
-
-  let message = '';
-  if (lang === 'tr') {
-    if (alert.status === 'overdue') {
-      message = `Merhaba *${tenant.name}*,\n\n*${propName}* için *${period}* dönemi kira ödemenizin (*${rentFormatted}*) vadesi üzerinden ${Math.abs(alert.daysRemaining)} gün geçmiştir.\n\nMüsait olduğunuzda ödemenizi iletmenizi rica ederiz.${ibanBlock}\n\nİyi günler dileriz,\n*${landlordName}*`;
-    } else if (alert.status === 'due_today') {
-      message = `Merhaba *${tenant.name}*,\n\n*${propName}* için *${period}* dönemi kira ödeme gününüz (*${rentFormatted}*) bugündür.${ibanBlock}\n\nÖdemeniz sonrasında resmi dijital makbuzunuz iletilecektir. Teşekkürler,\n*${landlordName}*`;
-    } else {
-      message = `Merhaba *${tenant.name}*,\n\n*${propName}* için *${period}* dönemi kira ödemenizin (*${rentFormatted}*) vadesine ${alert.daysRemaining} gün kalmıştır.${ibanBlock}\n\nİyi günler dileriz,\n*${landlordName}*`;
-    }
-  } else {
-    message = `Hello *${tenant.name}*,\n\nThis is a friendly reminder regarding your rent of *${rentFormatted}* for *${propName}* (${period}).${ibanBlock}\n\nThank you,\n*${landlordName}*`;
-  }
-
-  const cleanPhone = tenant.phone.replace(/[^0-9]/g, '');
-  const encoded = encodeURIComponent(message);
-  const whatsappUrl = cleanPhone
-    ? `whatsapp://send?phone=${cleanPhone}&text=${encoded}`
-    : `whatsapp://send?text=${encoded}`;
-
-  try {
-    const canOpen = await Linking.canOpenURL(whatsappUrl);
-    if (canOpen) {
-      await Linking.openURL(whatsappUrl);
-      return;
-    }
-  } catch {}
-
-  await Share.share({ message });
+  await openWhatsApp(alert.tenant.phone, buildReminderMessage(alert, landlord, options));
 }
 
 export async function sendPaymentConfirmationWhatsApp(
   payment: PaymentRecord,
+  tenantPhone: string,
   landlord: LandlordProfile,
-  lang: AppLanguage = 'tr'
+  options: MessageOptions
 ): Promise<void> {
-  const amountFormatted = formatMoney(payment.amount, payment.currency);
-  const landlordName = landlord.fullName?.trim() || 'Ev Sahibi / Yönetim';
-  const methodText =
-    payment.paymentMethod === 'bank_transfer'
-      ? lang === 'tr' ? 'Banka Havale/EFT' : 'Bank Transfer'
-      : lang === 'tr' ? 'Nakit Tahsilat' : 'Cash';
+  await openWhatsApp(tenantPhone, buildConfirmationMessage(payment, landlord, options));
+}
 
-  const message =
-    lang === 'tr'
-      ? `Sayın *${payment.tenantName}*,\n\n*${payment.propertyName}* taşınmazı için *${payment.periodMonthYear}* dönemi kira bedeli olan *${amountFormatted}* tutarındaki ödemeniz *${payment.paymentDate}* tarihinde (${methodText}) başarıyla tahsil edilmiştir.\n\nMakbuz No: *${payment.receiptNo}*\n\nTeşekkür eder, iyi günler dileriz.\n*${landlordName}*`
-      : `Dear *${payment.tenantName}*,\n\nYour rent payment of *${amountFormatted}* for *${payment.propertyName}* (${payment.periodMonthYear}) has been received on *${payment.paymentDate}* via ${methodText}.\n\nReceipt No: *${payment.receiptNo}*\n\nThank you,\n*${landlordName}*`;
-
-  const encoded = encodeURIComponent(message);
-  const whatsappUrl = `whatsapp://send?text=${encoded}`;
-
-  try {
-    const canOpen = await Linking.canOpenURL(whatsappUrl);
-    if (canOpen) {
-      await Linking.openURL(whatsappUrl);
-      return;
-    }
-  } catch {}
-
-  await Share.share({ message });
+export async function openTenantChat(tenant: TenantRecord, language: AppLanguage): Promise<void> {
+  await openWhatsApp(tenant.phone, t('waChatHello', { tenant: tenant.name }, language));
 }

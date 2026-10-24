@@ -1,89 +1,38 @@
 import * as SQLite from 'expo-sqlite';
-import { Platform } from 'react-native';
 
-export type CurrencyCode = 'TRY' | 'USD' | 'EUR' | 'GBP';
+import { factory } from '@/config';
 
-export interface PropertyRecord {
-  id: string;
-  name: string; // e.g. "Kadıköy 2+1 Daire"
-  address: string;
-  propertyType: 'apartment' | 'house' | 'shop' | 'office' | 'storage';
-  notes?: string;
-  createdAt: string;
+/**
+ * Yerel veritabanı (expo-sqlite) + anahtar/değer tercihleri.
+ *
+ * - Şema değişiklikleri yalnızca MIGRATIONS listesine YENİ adım eklenerek yapılır.
+ *   Yayınlanmış bir adımın SQL'i asla değiştirilmez; sürüm `PRAGMA user_version` ile izlenir.
+ * - Tercihler açılışta belleğe yüklenir; `getPref` senkron okunabilir (tema/dil gibi
+ *   ilk karede gereken değerler için). Yazma işlemleri önce önbelleği, sonra diski günceller.
+ * - Üretim tabloları boş başlar; örnek veri yalnızca onboarding önizlemesinde (bellekte) yaşar.
+ */
+
+export interface Migration {
+  version: number;
+  name: string;
+  sql: string;
 }
 
-export interface TenantRecord {
-  id: string;
-  propertyId: string;
-  propertyName?: string;
-  name: string; // Tenant full name
-  phone: string;
-  email?: string;
-  tcOrId?: string; // TC Identity or Tax No for receipt
-  rentAmount: number;
-  depositAmount: number;
-  currency: CurrencyCode;
-  paymentDueDay: number; // 1 - 31
-  leaseStartDate: string;
-  leaseEndDate?: string;
-  status: 'active' | 'past';
-  notes?: string;
-  createdAt: string;
-}
-
-export interface PaymentRecord {
-  id: string;
-  tenantId: string;
-  propertyId: string;
-  tenantName: string;
-  propertyName: string;
-  receiptNo: string; // e.g. "MK-2026-001"
-  paymentDate: string; // DD.MM.YYYY
-  periodMonthYear: string; // e.g. "Ekim 2026"
-  amount: number;
-  currency: CurrencyCode;
-  paymentMethod: 'bank_transfer' | 'cash' | 'credit_card';
-  status: 'paid' | 'partial' | 'pending';
-  notes?: string;
-  createdAt: string;
-}
-
-export interface LandlordProfile {
-  fullName: string;
-  phone: string;
-  email: string;
-  iban: string;
-  bankName: string;
-  address: string;
-  companyTitle?: string;
-}
-
-export const DEFAULT_LANDLORD_PROFILE: LandlordProfile = {
-  fullName: '',
-  phone: '',
-  email: '',
-  iban: '',
-  bankName: '',
-  address: '',
-  companyTitle: '',
-};
-
-let dbInstance: SQLite.SQLiteDatabase | null = null;
-
-export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
-  if (dbInstance) return dbInstance;
-  dbInstance = await SQLite.openDatabaseAsync('rentledger_factory.db');
-  return dbInstance;
-}
-
-export async function initLocalDatabase(): Promise<void> {
-  if (Platform.OS === 'web') return;
-  const db = await getDatabase();
-
-  await db.execAsync(`
-    PRAGMA journal_mode = WAL;
-
-    CREATE TABLE IF NOT EXISTS properties (
+export const MIGRATIONS: Migration[] = [
+  {
+    version: 1,
+    name: 'core_preferences',
+    sql: `CREATE TABLE IF NOT EXISTS kv_preferences (
+      key TEXT PRIMARY KEY NOT NULL,
+      value TEXT NOT NULL
+    );`,
+  },
+  {
+    // RentLedger v1 (user_version = 0) tabloları. Mevcut kurulumlarda tablolar zaten var;
+    // her ifade IF NOT EXISTS / OR IGNORE olduğu için adım idempotenttir.
+    version: 2,
+    name: 'rentledger_tables',
+    sql: `CREATE TABLE IF NOT EXISTS properties (
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
       address TEXT NOT NULL,
@@ -91,7 +40,6 @@ export async function initLocalDatabase(): Promise<void> {
       notes TEXT,
       createdAt TEXT NOT NULL
     );
-
     CREATE TABLE IF NOT EXISTS tenants (
       id TEXT PRIMARY KEY NOT NULL,
       propertyId TEXT NOT NULL,
@@ -109,7 +57,6 @@ export async function initLocalDatabase(): Promise<void> {
       notes TEXT,
       createdAt TEXT NOT NULL
     );
-
     CREATE TABLE IF NOT EXISTS payments (
       id TEXT PRIMARY KEY NOT NULL,
       tenantId TEXT NOT NULL,
@@ -126,7 +73,6 @@ export async function initLocalDatabase(): Promise<void> {
       notes TEXT,
       createdAt TEXT NOT NULL
     );
-
     CREATE TABLE IF NOT EXISTS landlord_profile (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       fullName TEXT NOT NULL DEFAULT '',
@@ -137,255 +83,192 @@ export async function initLocalDatabase(): Promise<void> {
       address TEXT NOT NULL DEFAULT '',
       companyTitle TEXT NOT NULL DEFAULT ''
     );
-
     CREATE TABLE IF NOT EXISTS preferences (
       key TEXT PRIMARY KEY NOT NULL,
       value TEXT NOT NULL
     );
+    INSERT OR IGNORE INTO kv_preferences (key, value) SELECT key, value FROM preferences;
+    INSERT OR IGNORE INTO kv_preferences (key, value)
+      SELECT 'app_language', value FROM preferences WHERE key = 'app_lang' AND value IN ('en', 'tr');
+    INSERT OR IGNORE INTO kv_preferences (key, value)
+      SELECT 'app_onboarding_done', 'true' FROM preferences WHERE key = 'has_seen_onboarding' AND value = 'true';
+    UPDATE kv_preferences
+      SET value = CASE value WHEN '₺' THEN 'TRY' WHEN '$' THEN 'USD' WHEN '€' THEN 'EUR' WHEN '£' THEN 'GBP' ELSE value END
+      WHERE key = 'app_currency';
+    -- Eski sürüm kiracı para birimini seçtirmeden hep 'TRY' yazıyordu; kullanıcının görüp seçtiği
+    -- uygulama para birimi USD/EUR/GBP ise eski kayıtları ona taşı (yeni kurulumda tablo boştur).
+    UPDATE tenants SET currency = (SELECT value FROM kv_preferences WHERE key = 'app_currency')
+      WHERE currency = 'TRY'
+        AND (SELECT value FROM kv_preferences WHERE key = 'app_currency') IN ('USD', 'EUR', 'GBP');
+    UPDATE payments SET currency = (SELECT value FROM kv_preferences WHERE key = 'app_currency')
+      WHERE currency = 'TRY'
+        AND (SELECT value FROM kv_preferences WHERE key = 'app_currency') IN ('USD', 'EUR', 'GBP');`,
+  },
+  {
+    // Kira dönemi artık makine-okunur anahtar (YYYY-MM) olarak saklanır; eski satırlar
+    // açılışta `prepareRentLedgerData()` ile doldurulur.
+    version: 3,
+    name: 'payments_period_key',
+    sql: `ALTER TABLE payments ADD COLUMN periodKey TEXT NOT NULL DEFAULT '';`,
+  },
+];
 
-    INSERT OR IGNORE INTO landlord_profile (id, fullName, phone, email, iban, bankName, address, companyTitle)
-    VALUES (1, '', '', '', '', '', '', '');
-  `);
+/** "Verileri sıfırla" ile temizlenen kullanıcı tabloları. */
+export const USER_DATA_TABLES = ['payments', 'tenants', 'properties', 'landlord_profile'] as const;
+
+export interface CounterTable {
+  table: string;
+  /** Birincil anahtar sütunu (ör. `year`). */
+  key: string;
+  /** Artan sayaç sütunu (ör. `last_value`). */
+  counter: string;
 }
 
-// Properties CRUD
-export async function getProperties(): Promise<PropertyRecord[]> {
-  if (Platform.OS === 'web') return [];
-  const db = await getDatabase();
-  return await db.getAllAsync<PropertyRecord>(
-    'SELECT * FROM properties ORDER BY createdAt DESC'
+/**
+ * Yedeğe giren ama "verileri sıfırla" ile SİLİNMEYEN sayaç tabloları (ör. belge numarası
+ * sayaçları). Geri yüklemede sayaç asla küçülmez: MAX(cihazdaki, yedekteki).
+ */
+export const BACKUP_COUNTER_TABLES: readonly CounterTable[] = [];
+
+/**
+ * Yedeğe giren sayaç tercihleri (ör. makbuz numarası). Bu önekler PROTECTED_PREF_PREFIXES
+ * içinde de olmalı (sıfırlamada silinmez); geri yüklemede büyük olan değer kalır.
+ */
+const COUNTER_PREF_PREFIXES: string[] = ['receipt_seq_'];
+
+/**
+ * Sıfırlamada KORUNAN tercih önekleri: ücretsiz kota sayaçları ve bonus
+ * geçmişi silinirse kullanıcı "verileri sıfırla" ile sınırsız hak kazanır.
+ * `receipt_seq_`: makbuz numaraları sıfırlamadan sonra bile tekrar kullanılmaz.
+ * Aynı nedenle bu tercihler (sayaç tercihleri hariç) yedeğe yazılmaz ve yedekten okunmaz.
+ */
+const PROTECTED_PREF_PREFIXES = ['quota_', 'bonus_', 'receipt_seq_'];
+
+export function isProtectedPref(key: string): boolean {
+  return PROTECTED_PREF_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
+
+export function isCounterPref(key: string): boolean {
+  return COUNTER_PREF_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
+
+let db: SQLite.SQLiteDatabase | null = null;
+let initPromise: Promise<void> | null = null;
+const prefCache = new Map<string, string>();
+
+export function initDatabase(): Promise<void> {
+  if (!initPromise) {
+    initPromise = openAndMigrate().catch((error) => {
+      initPromise = null;
+      throw error;
+    });
+  }
+  return initPromise;
+}
+
+async function openAndMigrate(): Promise<void> {
+  const database = await SQLite.openDatabaseAsync(factory.storage.databaseName);
+  await database.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+  await runMigrations(database);
+  await loadPrefCache(database);
+  db = database;
+}
+
+async function loadPrefCache(database: SQLite.SQLiteDatabase): Promise<void> {
+  const rows = await database.getAllAsync<{ key: string; value: string }>(
+    'SELECT key, value FROM kv_preferences'
+  );
+  prefCache.clear();
+  for (const row of rows) {
+    prefCache.set(row.key, row.value);
+  }
+}
+
+/** Tercihler veritabanında toplu değiştiğinde (yedekten geri yükleme) önbelleği tazeler. */
+export async function reloadPreferences(): Promise<void> {
+  await loadPrefCache(getDb());
+}
+
+/** Uygulanmış son göç adımı (`PRAGMA user_version`). */
+export async function getSchemaVersion(): Promise<number> {
+  const row = await getDb().getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+  return row?.user_version ?? 0;
+}
+
+async function runMigrations(database: SQLite.SQLiteDatabase): Promise<void> {
+  const row = await database.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+  const current = row?.user_version ?? 0;
+  const pending = [...MIGRATIONS]
+    .sort((a, b) => a.version - b.version)
+    .filter((m) => m.version > current);
+
+  // Not: withExclusiveTransactionAsync ayrı bir bağlantı açar; o bağlantıda
+  // foreign_keys kapalıdır ve ana bağlantıyla kilit çakışması olabilir. Göçler
+  // açılışta, başka sorgu yokken çalıştığı için ana bağlantıda işlem yeterlidir.
+  for (const migration of pending) {
+    await database.withTransactionAsync(async () => {
+      await database.execAsync(migration.sql);
+      // PRAGMA parametre almaz; sürüm sabit bir tamsayıdır.
+      await database.execAsync(`PRAGMA user_version = ${Math.trunc(migration.version)}`);
+    });
+  }
+}
+
+export function getDb(): SQLite.SQLiteDatabase {
+  if (!db) {
+    throw new Error('[database] initDatabase() tamamlanmadan veritabanına erişildi.');
+  }
+  return db;
+}
+
+// ----------------------------- Tercihler -----------------------------
+
+/** Senkron okuma — `initDatabase()` tamamlandıktan sonra güvenilirdir. */
+export function getPref(key: string): string | null {
+  return prefCache.get(key) ?? null;
+}
+
+export async function setPref(key: string, value: string): Promise<void> {
+  prefCache.set(key, value);
+  await getDb().runAsync(
+    'INSERT OR REPLACE INTO kv_preferences (key, value) VALUES (?, ?)',
+    key,
+    value
   );
 }
 
-export async function saveProperty(property: PropertyRecord): Promise<void> {
-  if (Platform.OS === 'web') return;
-  const db = await getDatabase();
-  await db.runAsync(
-    `INSERT OR REPLACE INTO properties (id, name, address, propertyType, notes, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [
-      property.id,
-      property.name,
-      property.address,
-      property.propertyType,
-      property.notes || '',
-      property.createdAt || new Date().toISOString(),
-    ]
-  );
+export async function removePref(key: string): Promise<void> {
+  prefCache.delete(key);
+  await getDb().runAsync('DELETE FROM kv_preferences WHERE key = ?', key);
 }
 
-export async function deleteProperty(propertyId: string): Promise<void> {
-  if (Platform.OS === 'web') return;
-  const db = await getDatabase();
-  await db.runAsync('DELETE FROM properties WHERE id = ?', [propertyId]);
-  await db.runAsync('DELETE FROM tenants WHERE propertyId = ?', [propertyId]);
-}
-
-// Tenants CRUD
-export async function getTenants(): Promise<TenantRecord[]> {
-  if (Platform.OS === 'web') return [];
-  const db = await getDatabase();
-  return await db.getAllAsync<TenantRecord>(
-    `SELECT t.*, p.name as propertyName 
-     FROM tenants t 
-     LEFT JOIN properties p ON t.propertyId = p.id 
-     ORDER BY t.createdAt DESC`
-  );
-}
-
-export async function saveTenant(tenant: TenantRecord): Promise<void> {
-  if (Platform.OS === 'web') return;
-  const db = await getDatabase();
-  await db.runAsync(
-    `INSERT OR REPLACE INTO tenants 
-     (id, propertyId, name, phone, email, tcOrId, rentAmount, depositAmount, currency, paymentDueDay, leaseStartDate, leaseEndDate, status, notes, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      tenant.id,
-      tenant.propertyId,
-      tenant.name,
-      tenant.phone,
-      tenant.email || '',
-      tenant.tcOrId || '',
-      tenant.rentAmount,
-      tenant.depositAmount,
-      tenant.currency,
-      tenant.paymentDueDay,
-      tenant.leaseStartDate,
-      tenant.leaseEndDate || '',
-      tenant.status,
-      tenant.notes || '',
-      tenant.createdAt || new Date().toISOString(),
-    ]
-  );
-}
-
-export async function deleteTenant(tenantId: string): Promise<void> {
-  if (Platform.OS === 'web') return;
-  const db = await getDatabase();
-  await db.runAsync('DELETE FROM tenants WHERE id = ?', [tenantId]);
-}
-
-// Payments / Receipts CRUD
-export async function getPayments(): Promise<PaymentRecord[]> {
-  if (Platform.OS === 'web') return [];
-  const db = await getDatabase();
-  return await db.getAllAsync<PaymentRecord>(
-    'SELECT * FROM payments ORDER BY createdAt DESC'
-  );
-}
-
-export async function savePayment(payment: PaymentRecord): Promise<void> {
-  if (Platform.OS === 'web') return;
-  const db = await getDatabase();
-  await db.runAsync(
-    `INSERT OR REPLACE INTO payments 
-     (id, tenantId, propertyId, tenantName, propertyName, receiptNo, paymentDate, periodMonthYear, amount, currency, paymentMethod, status, notes, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      payment.id,
-      payment.tenantId,
-      payment.propertyId,
-      payment.tenantName,
-      payment.propertyName,
-      payment.receiptNo,
-      payment.paymentDate,
-      payment.periodMonthYear,
-      payment.amount,
-      payment.currency,
-      payment.paymentMethod,
-      payment.status,
-      payment.notes || '',
-      payment.createdAt || new Date().toISOString(),
-    ]
-  );
-}
-
-export async function deletePayment(paymentId: string): Promise<void> {
-  if (Platform.OS === 'web') return;
-  const db = await getDatabase();
-  await db.runAsync('DELETE FROM payments WHERE id = ?', [paymentId]);
-}
-
-export async function generateNextReceiptNo(): Promise<string> {
-  const year = new Date().getFullYear();
-  if (Platform.OS === 'web') return `MK-${year}-001`;
-  const db = await getDatabase();
-  const row = await db.getFirstAsync<{ count: number }>(
-    'SELECT COUNT(*) as count FROM payments'
-  );
-  const nextNum = (row?.count || 0) + 1;
-  return `MK-${year}-${String(nextNum).padStart(3, '0')}`;
-}
-
-// Landlord Profile CRUD
-export async function getLandlordProfile(): Promise<LandlordProfile> {
-  if (Platform.OS === 'web') return DEFAULT_LANDLORD_PROFILE;
-  const db = await getDatabase();
-  const row = await db.getFirstAsync<LandlordProfile>(
-    'SELECT fullName, phone, email, iban, bankName, address, companyTitle FROM landlord_profile WHERE id = 1'
-  );
-  return row || DEFAULT_LANDLORD_PROFILE;
-}
-
-export async function saveLandlordProfile(profile: LandlordProfile): Promise<void> {
-  if (Platform.OS === 'web') return;
-  const db = await getDatabase();
-  await db.runAsync(
-    `UPDATE landlord_profile 
-     SET fullName = ?, phone = ?, email = ?, iban = ?, bankName = ?, address = ?, companyTitle = ?
-     WHERE id = 1`,
-    [
-      profile.fullName,
-      profile.phone,
-      profile.email,
-      profile.iban,
-      profile.bankName,
-      profile.address,
-      profile.companyTitle || '',
-    ]
-  );
-}
-
-// Receipt Allowance & Free Limit Tracking
-export interface ReceiptAllowanceInfo {
-  usedCount: number;
-  bonusEarned: number;
-  remainingFree: number;
-  totalFreeAllowed: number;
-}
-
-const INITIAL_FREE_RECEIPTS = 3;
-
-export async function getReceiptAllowanceInfo(): Promise<ReceiptAllowanceInfo> {
-  const [usedStr, bonusStr] = await Promise.all([
-    getPreference('receipts_used_count'),
-    getPreference('receipts_bonus_earned'),
-  ]);
-  const usedCount = parseInt(usedStr || '0', 10);
-  const bonusEarned = parseInt(bonusStr || '0', 10);
-  const totalFreeAllowed = INITIAL_FREE_RECEIPTS + bonusEarned;
-  const remainingFree = Math.max(0, totalFreeAllowed - usedCount);
-
-  return { usedCount, bonusEarned, remainingFree, totalFreeAllowed };
-}
-
-export async function incrementReceiptUsage(): Promise<void> {
-  const info = await getReceiptAllowanceInfo();
-  await setPreference('receipts_used_count', String(info.usedCount + 1));
-}
-
-export async function grantBonusReceipt(): Promise<number> {
-  const info = await getReceiptAllowanceInfo();
-  const newBonus = info.bonusEarned + 1;
-  await setPreference('receipts_bonus_earned', String(newBonus));
-  return newBonus;
-}
-
-// Preferences KV store
+/** Eski ekranlarla uyum için asenkron okuma. */
 export async function getPreference(key: string): Promise<string | null> {
-  if (Platform.OS === 'web') {
-    try {
-      return localStorage.getItem(`rentledger_${key}`);
-    } catch {
-      return null;
+  await initDatabase();
+  return getPref(key);
+}
+
+export const setPreference = setPref;
+
+/**
+ * Kullanıcı verilerini ve tercihleri siler; satın alma durumu (mağazada tutulur)
+ * ve ücretsiz kota sayaçları korunur.
+ */
+export async function resetLocalData(): Promise<void> {
+  const database = getDb();
+  // Ana bağlantıda çalışır: foreign_keys açık kalır (ON DELETE CASCADE çalışır).
+  await database.withTransactionAsync(async () => {
+    for (const table of USER_DATA_TABLES) {
+      await database.execAsync(`DELETE FROM ${table}`);
+    }
+    const keys = [...prefCache.keys()].filter((key) => !isProtectedPref(key));
+    for (const key of keys) {
+      await database.runAsync('DELETE FROM kv_preferences WHERE key = ?', key);
+    }
+  });
+  for (const key of [...prefCache.keys()]) {
+    if (!isProtectedPref(key)) {
+      prefCache.delete(key);
     }
   }
-  const db = await getDatabase();
-  const row = await db.getFirstAsync<{ value: string }>(
-    'SELECT value FROM preferences WHERE key = ?',
-    [key]
-  );
-  return row?.value ?? null;
-}
-
-export async function setPreference(key: string, value: string): Promise<void> {
-  if (Platform.OS === 'web') {
-    try {
-      localStorage.setItem(`rentledger_${key}`, value);
-    } catch {}
-    return;
-  }
-  const db = await getDatabase();
-  await db.runAsync(
-    'INSERT OR REPLACE INTO preferences (key, value) VALUES (?, ?)',
-    [key, value]
-  );
-}
-
-export async function resetAllLocalData(): Promise<void> {
-  if (Platform.OS === 'web') {
-    try {
-      localStorage.clear();
-    } catch {}
-    return;
-  }
-  const db = await getDatabase();
-  await db.execAsync(`
-    DELETE FROM payments;
-    DELETE FROM tenants;
-    DELETE FROM properties;
-    DELETE FROM preferences;
-    UPDATE landlord_profile SET fullName = '', phone = '', email = '', iban = '', bankName = '', address = '', companyTitle = '' WHERE id = 1;
-  `);
 }

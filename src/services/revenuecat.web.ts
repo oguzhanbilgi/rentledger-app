@@ -1,204 +1,132 @@
-import { getPreference, setPreference } from './database.web';
-import type { PlanTierId, PricingPlan, SubscriptionState } from './revenuecat';
+import { useSyncExternalStore } from 'react';
+
+import { factory } from '@/config';
 
 /**
- * Web Platformu için RevenueCat Yedek (Stub) Servisi
+ * Web önizlemesi: gerçek mağaza yok. Geliştirmede paywall akışı simüle edilir,
+ * web yayın derlemesinde satın alma kapalıdır. API native sürümle birebir aynıdır.
  */
 
-export type { PlanTierId, PricingPlan, SubscriptionState };
+export type PurchasesMode = 'store' | 'dev-preview' | 'unavailable';
 
-export const REVENUECAT_CONFIG = {
-  appleApiKey: 'web_mock_key',
-  googleApiKey: 'web_mock_key',
-  entitlementId: 'pro_access',
-};
-
-export const PRICING_PLANS_BY_LANG: Record<'en' | 'tr', PricingPlan[]> = {
-  tr: [
-    {
-      id: 'weekly',
-      rcPackageIdentifier: '$rc_weekly',
-      title: 'Haftalık Başlangıç',
-      subtitle: 'Kısa süreli deneme ve hızlı tahsilat',
-      priceString: '₺79,99',
-      periodLabel: '/ hafta',
-    },
-    {
-      id: 'monthly',
-      rcPackageIdentifier: '$rc_monthly',
-      title: 'Aylık Pro Paket',
-      subtitle: 'Düzenli mülk ve kiracı takibi için ideal',
-      priceString: '₺199,99',
-      periodLabel: '/ ay',
-      badge: 'ESNEK AYLIK PLAN',
-    },
-    {
-      id: 'annual',
-      rcPackageIdentifier: '$rc_annual',
-      title: 'Yıllık Pro Paket',
-      subtitle: 'Aylık sadece ₺66 • İstediğiniz zaman iptal edin',
-      priceString: '₺799,99',
-      periodLabel: '/ yıl',
-      badge: 'EN POPÜLER • %75 TASARRUF',
-      savingsText: '%75 İndirimli',
-      highlight: true,
-    },
-    {
-      id: 'lifetime',
-      rcPackageIdentifier: '$rc_lifetime',
-      title: 'Ömür Boyu Sınırsız',
-      subtitle: 'Tek seferlik ödeme, sonsuza kadar sınırsız mülk & makbuz',
-      priceString: '₺1.499,99',
-      periodLabel: 'tek ödeme',
-      badge: 'EN İYİ DEĞER',
-    },
-  ],
-  en: [
-    {
-      id: 'weekly',
-      rcPackageIdentifier: '$rc_weekly',
-      title: 'Weekly Starter',
-      subtitle: 'Short-term trial & fast receipts',
-      priceString: '$4.99',
-      periodLabel: '/ week',
-    },
-    {
-      id: 'monthly',
-      rcPackageIdentifier: '$rc_monthly',
-      title: 'Monthly Pro',
-      subtitle: 'Ideal for regular rent & tenant tracking',
-      priceString: '$9.99',
-      periodLabel: '/ mo',
-      badge: 'FLEXIBLE PLAN',
-    },
-    {
-      id: 'annual',
-      rcPackageIdentifier: '$rc_annual',
-      title: 'Annual Pro',
-      subtitle: 'Only $3.33/mo • Cancel anytime',
-      priceString: '$39.99',
-      periodLabel: '/ year',
-      badge: 'MOST POPULAR • 75% OFF',
-      savingsText: 'Save 75%',
-      highlight: true,
-    },
-    {
-      id: 'lifetime',
-      rcPackageIdentifier: '$rc_lifetime',
-      title: 'Lifetime Unlimited',
-      subtitle: 'One-time payment, unlimited properties & receipts forever',
-      priceString: '$79.99',
-      periodLabel: 'one-time',
-      badge: 'BEST VALUE',
-    },
-  ],
-};
-
-export function getPricingPlans(lang: 'en' | 'tr' = 'en'): PricingPlan[] {
-  return PRICING_PLANS_BY_LANG[lang] || PRICING_PLANS_BY_LANG.en;
+export interface SubscriptionState {
+  ready: boolean;
+  isPro: boolean;
+  mode: PurchasesMode;
+  activeProductId: string | null;
+  expirationDate: string | null;
+  willRenew: boolean;
+  managementUrl: string | null;
 }
 
-export const PRICING_PLANS: PricingPlan[] = PRICING_PLANS_BY_LANG.en;
+export type PlanKind = 'weekly' | 'monthly' | 'annual' | 'lifetime' | 'other';
 
-export async function fetchLivePricingPlans(
-  lang: 'en' | 'tr' = 'en'
-): Promise<PricingPlan[]> {
-  return getPricingPlans(lang);
+export interface FreeTrial {
+  unit: 'day' | 'month';
+  count: number;
 }
 
-type Listener = (state: SubscriptionState) => void;
+export interface PaywallPlan {
+  id: string;
+  kind: PlanKind;
+  priceString: string;
+  price: number;
+  currencyCode: string;
+  pricePerMonthString: string | null;
+  savingsPercent: number | null;
+  isBestValue: boolean;
+  freeTrial: FreeTrial | null;
+}
+
+export type OfferingsResult =
+  | { status: 'ok'; plans: PaywallPlan[]; mode: PurchasesMode }
+  | { status: 'unavailable'; message: string };
+
+export type PurchaseOutcome =
+  | { status: 'success' }
+  | { status: 'cancelled' }
+  | { status: 'pending' }
+  | { status: 'error'; message: string; code?: string };
+
+export type RestoreOutcome =
+  | { status: 'restored' }
+  | { status: 'not_found' }
+  | { status: 'error'; message: string };
+
+type Listener = () => void;
 const listeners = new Set<Listener>();
-
-let currentSubscriptionState: SubscriptionState = {
+let state: SubscriptionState = {
+  ready: true,
   isPro: false,
-  activePlan: 'Free Plan (Web)',
-  isConfigured: true,
-  mode: 'mock',
+  mode: __DEV__ ? 'dev-preview' : 'unavailable',
+  activeProductId: null,
+  expirationDate: null,
+  willRenew: false,
+  managementUrl: null,
 };
 
-function notifyListeners(newState: SubscriptionState) {
-  currentSubscriptionState = newState;
-  listeners.forEach((listener) => listener(newState));
+function setState(patch: Partial<SubscriptionState>): void {
+  state = { ...state, ...patch };
+  listeners.forEach((listener) => listener());
 }
 
-export function subscribeToSubscriptionChanges(listener: Listener): () => void {
+export function getSubscriptionState(): SubscriptionState {
+  return state;
+}
+
+export function subscribeSubscription(listener: Listener): () => void {
   listeners.add(listener);
-  listener(currentSubscriptionState);
   return () => {
     listeners.delete(listener);
   };
 }
 
-export function getCurrentSubscriptionState(): SubscriptionState {
-  return currentSubscriptionState;
+export function useSubscription(): SubscriptionState {
+  return useSyncExternalStore(subscribeSubscription, getSubscriptionState, getSubscriptionState);
 }
 
-export async function initializeRevenueCat(): Promise<SubscriptionState> {
-  const savedPro = await getPreference('rc_is_pro');
-  const savedPlan = await getPreference('rc_active_plan');
-  const isPro = savedPro === 'true';
-
-  const state: SubscriptionState = {
-    isPro,
-    activePlan: isPro ? savedPlan || 'Factory Pro (Yıllık)' : 'Free Plan (Web)',
-    isConfigured: true,
-    mode: 'mock',
-  };
-  notifyListeners(state);
+export async function initPurchases(): Promise<SubscriptionState> {
   return state;
 }
 
-export async function purchaseSubscriptionPlan(planId: PlanTierId): Promise<SubscriptionState> {
-  const plan = PRICING_PLANS.find((p) => p.id === planId) || PRICING_PLANS[1];
-  const activePlanName = `Factory Pro (${plan.title})`;
-
-  await setPreference('rc_is_pro', 'true');
-  await setPreference('rc_active_plan', activePlanName);
-
-  const nextState: SubscriptionState = {
-    isPro: true,
-    activePlan: activePlanName,
-    selectedTier: planId,
-    isConfigured: true,
-    mode: 'mock',
-  };
-  notifyListeners(nextState);
-  return nextState;
+export async function loadPaywallPlans(): Promise<OfferingsResult> {
+  if (state.mode !== 'dev-preview') {
+    return { status: 'unavailable', message: 'web_not_supported' };
+  }
+  const prices = factory.monetization.devPreviewPrices;
+  const plans: PaywallPlan[] = (['annual', 'monthly', 'weekly', 'lifetime'] as const).map(
+    (kind) => ({
+      id: `dev_${kind}`,
+      kind,
+      priceString: prices[kind],
+      price: 0,
+      currencyCode: 'USD',
+      pricePerMonthString: null,
+      savingsPercent: null,
+      isBestValue: kind === 'annual',
+      // Önizlemede deneme metinlerini görmek için; yayında deneme yalnızca mağazadan gelir.
+      freeTrial: kind === 'annual' ? ({ unit: 'day', count: 7 } as const) : null,
+    })
+  );
+  return { status: 'ok', plans, mode: 'dev-preview' };
 }
 
-export async function restorePurchasesFromStore(): Promise<{
-  state: SubscriptionState;
-  restored: boolean;
-}> {
-  const savedPro = await getPreference('rc_is_pro');
-  const savedPlan = await getPreference('rc_active_plan');
-  const isPro = savedPro === 'true';
-
-  const state: SubscriptionState = {
-    isPro,
-    activePlan: isPro ? savedPlan || 'Factory Pro (Restored)' : 'Free Plan (Web)',
-    isConfigured: true,
-    mode: 'mock',
-  };
-  notifyListeners(state);
-  return { state, restored: isPro };
+export async function purchasePlan(planId: string): Promise<PurchaseOutcome> {
+  if (state.mode !== 'dev-preview') {
+    return { status: 'error', message: 'web_not_supported' };
+  }
+  setState({ isPro: true, activeProductId: planId });
+  return { status: 'success' };
 }
 
-export async function simulateOrRestorePurchase(
-  currentProState: boolean
-): Promise<SubscriptionState> {
-  const nextPro = !currentProState;
-  const activePlan = nextPro ? 'Factory Pro (Yıllık)' : 'Free Plan (Web)';
+export async function restorePurchases(): Promise<RestoreOutcome> {
+  return state.isPro ? { status: 'restored' } : { status: 'not_found' };
+}
 
-  await setPreference('rc_is_pro', nextPro ? 'true' : 'false');
-  await setPreference('rc_active_plan', activePlan);
+export async function openManageSubscriptions(): Promise<void> {}
 
-  const nextState: SubscriptionState = {
-    isPro: nextPro,
-    activePlan,
-    isConfigured: true,
-    mode: 'mock',
-  };
-  notifyListeners(nextState);
-  return nextState;
+export function resetDevPreviewPurchase(): void {
+  if (__DEV__) {
+    setState({ isPro: false, activeProductId: null });
+  }
 }

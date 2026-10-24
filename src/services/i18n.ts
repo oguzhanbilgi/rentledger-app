@@ -1,183 +1,137 @@
-export type AppLanguage = 'tr' | 'en';
-export type CurrencySymbol = '₺' | '$' | '€' | '£';
+import { useSyncExternalStore } from 'react';
 
-export interface I18nState {
-  lang: AppLanguage;
-  currency: CurrencySymbol;
-}
+import { factory, type AppLanguage } from '@/config';
+import { en, type TranslationKey } from '@/i18n/en';
+import { tr } from '@/i18n/tr';
+import { getPref, setPref } from '@/services/database';
 
-export const CURRENCY_OPTIONS: Array<{
-  code: string;
-  symbol: CurrencySymbol;
-  label: string;
-}> = [
-  { code: 'TRY', symbol: '₺', label: 'TRY (₺)' },
-  { code: 'USD', symbol: '$', label: 'USD ($)' },
-  { code: 'EUR', symbol: '€', label: 'EUR (€)' },
-  { code: 'GBP', symbol: '£', label: 'GBP (£)' },
+/**
+ * Çift dil (EN/TR) — %100 tek dil kuralı:
+ * İlk açılışta cihaz dili okunur; Türkçe cihazda her şey Türkçe, diğerlerinde İngilizce.
+ * Kullanıcı Ayarlar'dan değiştirebilir; seçim kalıcıdır.
+ */
+
+export type { AppLanguage } from '@/config';
+export type { TranslationKey } from '@/i18n/en';
+
+export const SUPPORTED_LANGUAGES: { code: AppLanguage; label: string }[] = [
+  { code: 'en', label: 'English' },
+  { code: 'tr', label: 'Türkçe' },
 ];
 
-let currentI18nState: I18nState = {
-  lang: 'en',
-  currency: '$',
-};
+const dictionaries: Record<AppLanguage, Record<TranslationKey, string>> = { en, tr };
+const LANGUAGE_PREF = 'app_language';
 
-type I18nListener = (state: I18nState) => void;
-const i18nListeners = new Set<I18nListener>();
+type Listener = () => void;
+const listeners = new Set<Listener>();
+let currentLanguage: AppLanguage = factory.app.fallbackLanguage;
 
-export function getI18nState(): I18nState {
-  return currentI18nState;
+export function detectDeviceLanguage(): AppLanguage {
+  try {
+    const locale = Intl.DateTimeFormat().resolvedOptions().locale.toLowerCase();
+    if (locale.startsWith('tr')) return 'tr';
+    if (locale.startsWith('en')) return 'en';
+  } catch {
+    // Intl yoksa yedek dile düş
+  }
+  return factory.app.fallbackLanguage;
 }
 
-export function setI18nState(partial: Partial<I18nState>): void {
-  currentI18nState = { ...currentI18nState, ...partial };
-  i18nListeners.forEach((fn) => fn(currentI18nState));
+/**
+ * `initDatabase()` sonrasında, ilk ekran çizilmeden önce çağrılır. "Verileri sıfırla"
+ * sonrasında da çağrılır; dil değiştiyse açık ekranlar yeniden çizilir.
+ */
+export function initI18n(): AppLanguage {
+  const saved = getPref(LANGUAGE_PREF);
+  const next: AppLanguage = saved === 'en' || saved === 'tr' ? saved : detectDeviceLanguage();
+  if (next !== currentLanguage) {
+    currentLanguage = next;
+    listeners.forEach((listener) => listener());
+  }
+  return currentLanguage;
 }
 
-export function subscribeI18n(listener: I18nListener): () => void {
-  i18nListeners.add(listener);
-  listener(currentI18nState);
+export function getLanguage(): AppLanguage {
+  return currentLanguage;
+}
+
+export async function setLanguage(language: AppLanguage): Promise<void> {
+  if (language === currentLanguage) return;
+  currentLanguage = language;
+  listeners.forEach((listener) => listener());
+  await setPref(LANGUAGE_PREF, language);
+}
+
+export function subscribeLanguage(listener: Listener): () => void {
+  listeners.add(listener);
   return () => {
-    i18nListeners.delete(listener);
+    listeners.delete(listener);
   };
 }
 
-export function formatMoney(amount: number, currencySymbol?: string): string {
-  const sym = currencySymbol || currentI18nState.currency;
-  const locale = currentI18nState.lang === 'tr' ? 'tr-TR' : 'en-US';
-  const numStr = (amount || 0).toLocaleString(locale, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  });
-  return `${sym}${numStr}`;
+export type TranslationParams = Record<string, string | number>;
+
+export function t(
+  key: TranslationKey,
+  params?: TranslationParams,
+  language: AppLanguage = currentLanguage
+): string {
+  const template = dictionaries[language][key] ?? en[key];
+  if (!params) return template;
+  return template.replace(/\{(\w+)\}/g, (match, name: string) =>
+    name in params ? String(params[name]) : match
+  );
 }
 
-export const DICTIONARY = {
-  tr: {
-    appTitle: 'RentLedger Pro',
-    appSubtitle: 'Kira Takip & Resmi PDF Makbuzu',
-    tabDashboard: 'Kira Takip',
-    tabProperties: 'Mülkler',
-    tabSettings: 'Ayarlar',
+/** Dil değişince yeniden çizilen bileşenler için. */
+export function useI18n() {
+  const language = useSyncExternalStore(subscribeLanguage, getLanguage, getLanguage);
+  return {
+    language,
+    t: (key: TranslationKey, params?: TranslationParams) => t(key, params, language),
+    setLanguage,
+  };
+}
 
-    // Dashboard
-    dashboardTitle: 'Kira Takip Paneli',
-    dashboardSubtitle: 'Aylık kira tahsilatları ve yaklaşan vadeler',
-    totalExpectedRent: 'Aylık Toplam Kira',
-    totalCollectedThisMonth: 'Bu Ay Tahsil Edilen',
-    totalPendingOrOverdue: 'Bekleyen / Geciken',
-    addPaymentBtn: 'Kira Tahsilatı Ekle',
-    newPropertyBtn: 'Yeni Mülk & Kiracı',
-    activeTenantsCount: 'Aktif Kiracı',
-    overdueAlertTitle: 'Süresi Yaklaşan & Geciken Kiralar',
-    noOverdueAlerts: 'Harika! Şu anda vadesi yaklaşan veya geciken kira bulunmuyor.',
-    remindViaWhatsApp: 'Hatırlat',
-    sendReceiptWhatsApp: 'WhatsApp Makbuz',
-    viewPdfReceipt: 'Makbuz PDF',
-    recentPayments: 'Son Kira Tahsilatları',
-    noPaymentsYet: 'Henüz kayıtlı bir kira tahsilatı yok.',
-    noPaymentsSub: 'İlk kira ödemenizi ekleyerek saniyeler içinde resmi PDF makbuzu oluşturun.',
+/** Uygulama adı / stüdyo gibi config değerlerini otomatik ekleyen yardımcı. */
+export function brandParams(extra?: TranslationParams): TranslationParams {
+  return {
+    app: factory.app.name,
+    studio: factory.studio.name,
+    email: factory.studio.supportEmail,
+    ...extra,
+  };
+}
 
-    // Properties
-    propertiesTitle: 'Mülkler & Kiracılar',
-    propertiesSubtitle: 'Kayıtlı taşınmazlar ve aktif kiracı listesi',
-    noPropertiesYet: 'Henüz mülk eklenmedi',
-    noPropertiesSub: 'Daire, dükkan veya ofislerinizi ekleyerek kira ödemelerini düzenli takip edin.',
-    rentDayLabel: 'Ödeme Günü',
-    rentAmountLabel: 'Kira Bedeli',
-    depositLabel: 'Depozito',
-    callTenant: 'Ara',
-    whatsappTenant: 'WhatsApp',
+export function localeTag(language: AppLanguage = currentLanguage): string {
+  return language === 'tr' ? 'tr-TR' : 'en-US';
+}
 
-    // Settings
-    settingsTitle: 'Ayarlar & Profil',
-    settingsSubtitle: 'Ev sahibi bilgileri ve uygulama tercihleri',
-    landlordProfileTitle: 'Ev Sahibi / Yönetici Anteti',
-    landlordProfileSub: 'Makbuzlarda ve WhatsApp mesajlarında görünür',
-    fullName: 'Ad Soyad / Firma Ünvanı',
-    phone: 'Telefon Numarası',
-    iban: 'Banka IBAN Numarası',
-    bankName: 'Banka Adı',
-    saveProfileBtn: 'Profili Kaydet',
-    membershipPro: 'RentLedger PRO',
-    membershipFree: 'Ücretsiz Plan',
-    statFreeReceiptsRemaining: 'Kalan Ücretsiz Makbuz',
-    upgradeToPro: 'Sınırsız Makbuz & Mülk İçin PRO Al',
-    languageLabel: 'Uygulama Dili',
-    currencyLabel: 'Para Birimi',
-    notificationsTitle: 'Kira Vade Bildirimleri',
-    notificationsSub: 'Vadesi gelen kiraları otomatik hatırlatır',
-    checkRemindersBtn: 'Kira Vadelerini Şimdi Tara',
-    rateUs: 'Bizi Mağazada Değerlendirin ⭐',
-    restorePurchases: 'Satın Alımları Geri Yükle',
-    privacyPolicy: 'Gizlilik Politikası',
-    termsOfUse: 'Kullanım Koşulları',
-    resetDataBtn: 'Tüm Verileri Sıfırla',
-  },
-  en: {
-    appTitle: 'RentLedger Pro',
-    appSubtitle: 'Rent Tracker & Official PDF Receipt',
-    tabDashboard: 'Rent Tracker',
-    tabProperties: 'Properties',
-    tabSettings: 'Settings',
+/** Para birimi ISO kodu ile biçimlendirme (ör. `TRY` → ₺1.250,00). Sembol saklamayın, kod saklayın. */
+export function formatMoney(
+  amount: number,
+  currencyCode: string = factory.app.defaultCurrency,
+  language: AppLanguage = currentLanguage
+): string {
+  const safe = Number.isFinite(amount) ? amount : 0;
+  try {
+    return new Intl.NumberFormat(localeTag(language), {
+      style: 'currency',
+      currency: currencyCode,
+    }).format(safe);
+  } catch {
+    return `${safe.toFixed(2)} ${currencyCode}`;
+  }
+}
 
-    // Dashboard
-    dashboardTitle: 'Rent Dashboard',
-    dashboardSubtitle: 'Monthly collections and upcoming due dates',
-    totalExpectedRent: 'Monthly Expected Rent',
-    totalCollectedThisMonth: 'Collected This Month',
-    totalPendingOrOverdue: 'Pending / Overdue',
-    addPaymentBtn: 'Record Payment',
-    newPropertyBtn: 'New Property & Tenant',
-    activeTenantsCount: 'Active Tenants',
-    overdueAlertTitle: 'Upcoming & Overdue Rents',
-    noOverdueAlerts: 'Great! All rents are up to date.',
-    remindViaWhatsApp: 'Remind',
-    sendReceiptWhatsApp: 'WhatsApp Receipt',
-    viewPdfReceipt: 'PDF Receipt',
-    recentPayments: 'Recent Rent Payments',
-    noPaymentsYet: 'No rent payments recorded yet.',
-    noPaymentsSub: 'Record your first rent payment to generate an official PDF receipt in seconds.',
-
-    // Properties
-    propertiesTitle: 'Properties & Tenants',
-    propertiesSubtitle: 'Registered properties and active leases',
-    noPropertiesYet: 'No properties added yet',
-    noPropertiesSub: 'Add your apartments, shops, or offices to track rent payments automatically.',
-    rentDayLabel: 'Due Day',
-    rentAmountLabel: 'Rent Amount',
-    depositLabel: 'Deposit',
-    callTenant: 'Call',
-    whatsappTenant: 'WhatsApp',
-
-    // Settings
-    settingsTitle: 'Settings & Profile',
-    settingsSubtitle: 'Landlord profile and preferences',
-    landlordProfileTitle: 'Landlord / Manager Header',
-    landlordProfileSub: 'Printed on PDF receipts & WhatsApp messages',
-    fullName: 'Full Name / Company Name',
-    phone: 'Phone Number',
-    iban: 'Bank IBAN Number',
-    bankName: 'Bank Name',
-    saveProfileBtn: 'Save Profile',
-    membershipPro: 'RentLedger PRO',
-    membershipFree: 'Free Starter Plan',
-    statFreeReceiptsRemaining: 'Free PDF Receipts Left',
-    upgradeToPro: 'Upgrade to PRO for Unlimited',
-    languageLabel: 'App Language',
-    currencyLabel: 'Currency',
-    notificationsTitle: 'Rent Due Reminders',
-    notificationsSub: 'Automatic alerts for upcoming rents',
-    checkRemindersBtn: 'Scan Due Dates Now',
-    rateUs: 'Rate Us on the Store ⭐',
-    restorePurchases: 'Restore Purchases',
-    privacyPolicy: 'Privacy Policy',
-    termsOfUse: 'Terms of Use',
-    resetDataBtn: 'Reset All Data',
-  },
-};
-
-export function t(key: keyof typeof DICTIONARY['tr'], lang?: AppLanguage): string {
-  const activeLang = lang || currentI18nState.lang;
-  return DICTIONARY[activeLang]?.[key] || DICTIONARY['en']?.[key] || DICTIONARY['tr'][key] || String(key);
+export function formatDate(
+  value: Date | string,
+  language: AppLanguage = currentLanguage
+): string {
+  const date = typeof value === 'string' ? new Date(value) : value;
+  return date.toLocaleDateString(localeTag(language), {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 }

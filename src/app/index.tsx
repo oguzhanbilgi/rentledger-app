@@ -1,547 +1,468 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Text,
-  View,
-} from 'react-native';
+import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import { useColorScheme } from 'nativewind';
 import { useFocusEffect } from 'expo-router';
 import {
   AlertTriangle,
   Building2,
-  CalendarCheck,
   CheckCircle2,
-  Clock,
-  DollarSign,
+  Crown,
   FileText,
   MessageCircle,
   Plus,
   Receipt,
-  Sparkles,
   Trash2,
-  Users,
 } from 'lucide-react-native';
 
+import { NewPaymentModal } from '@/components/new-payment-modal';
+import { NewTenantPropertyModal } from '@/components/new-tenant-property-modal';
+import { OnboardingModal } from '@/components/onboarding-modal';
+import { QuotaGateModal } from '@/components/quota-gate-modal';
+import { RentPaywall } from '@/components/rent-paywall';
+import { SmartAdBanner } from '@/components/smart-ad-banner';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { factory } from '@/config';
+import { useThemeColors } from '@/constants/theme';
+import { buildOnboardingSteps } from '@/features/onboarding-steps';
+import { maybeShowInterstitial } from '@/services/ads';
+import { canUseUnit, consumeUnit, useQuota } from '@/services/credits';
+import { triggerHaptic } from '@/services/haptics';
+import { formatMoney, useI18n } from '@/services/i18n';
+import { completeOnboarding, isOnboardingDone, useOnboardingReplayToken } from '@/services/onboarding';
+import { exportReceiptPdf } from '@/services/receipt-pdf-generator';
 import {
-  PaymentRecord,
-  PropertyRecord,
-  TenantRecord,
-  deletePayment,
-  getLandlordProfile,
-  getPayments,
-  getPreference,
-  getProperties,
-  getReceiptAllowanceInfo,
-  getTenants,
-  initLocalDatabase,
-  setPreference,
-} from '@/services/database';
-import { AppLanguage, formatMoney, getI18nState, subscribeI18n, t } from '@/services/i18n';
+  displayPaymentDate,
+  displayPeriod,
+  formatPeriod,
+  paymentMethodLabel,
+  toPeriodKey,
+} from '@/services/rent-format';
 import {
-  getCurrentSubscriptionState,
-  subscribeToSubscriptionChanges,
-  SubscriptionState,
-} from '@/services/revenuecat';
-import {
-  RentDueAlert,
-  getCurrentPeriodMonthYear,
+  dueStatusLabel,
   getRentDueAlerts,
   sendPaymentConfirmationWhatsApp,
   sendRentReminderWhatsApp,
+  type DueStatus,
+  type RentDueAlert,
 } from '@/services/rent-reminders';
-import { generateAndShareReceiptPdf } from '@/services/receipt-pdf-generator';
-import { requestInterstitialAdWithUpsell } from '@/components/periodic-ad-modal';
-import { SmartAdBanner } from '@/components/smart-ad-banner';
-import { NewPaymentModal } from '@/components/new-payment-modal';
-import { NewTenantPropertyModal } from '@/components/new-tenant-property-modal';
-import { ReceiptGateModal } from '@/components/receipt-gate-modal';
-import { PaywallModal } from '@/components/paywall-modal';
-import { OnboardingModal } from '@/components/onboarding-modal';
+import { summarizePeriod } from '@/services/rent-summary';
+import {
+  deletePayment,
+  getLandlordProfile,
+  getPayments,
+  getProperties,
+  getTenants,
+} from '@/services/rentledger-data';
+import type { PaymentRecord, PropertyRecord, TenantRecord } from '@/services/rentledger-types';
+import { useSubscription } from '@/services/revenuecat';
+import { recordReviewMilestone } from '@/services/store-review';
+
+const BADGE: Record<DueStatus, string> = {
+  overdue: 'bg-danger/15 text-danger',
+  due_today: 'bg-warning/15 text-warning',
+  upcoming: 'bg-accent/15 text-accent',
+};
 
 export default function RentDashboardScreen() {
-  const { colorScheme } = useColorScheme();
-  const isDark = colorScheme === 'dark';
-
-  const [i18n, setI18n] = useState(getI18nState());
-  const [subState, setSubState] = useState<SubscriptionState>(
-    getCurrentSubscriptionState()
-  );
+  const { t, language } = useI18n();
+  const colors = useThemeColors();
+  const { isPro } = useSubscription();
+  const quota = useQuota();
+  const replayToken = useOnboardingReplayToken();
 
   const [properties, setProperties] = useState<PropertyRecord[]>([]);
   const [tenants, setTenants] = useState<TenantRecord[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
-  const [dueAlerts, setDueAlerts] = useState<RentDueAlert[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Modals
-  const [newPaymentVisible, setNewPaymentVisible] = useState(false);
-  const [newTenantVisible, setNewTenantVisible] = useState(false);
-  const [receiptGateVisible, setReceiptGateVisible] = useState(false);
+  const [paymentVisible, setPaymentVisible] = useState(false);
+  const [propertyVisible, setPropertyVisible] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
-  const [onboardingVisible, setOnboardingVisible] = useState(false);
+  const [gateVisible, setGateVisible] = useState(false);
+  const [onboardingVisible, setOnboardingVisible] = useState(() => !isOnboardingDone());
+  const [exportingId, setExportingId] = useState<string | null>(null);
+  // "Bugün" durum olarak tutulur ve her odaklanmada tazelenir (ay dönümünde dönem güncel kalsın).
+  const [now, setNow] = useState(() => new Date());
+  const pendingExport = useRef<PaymentRecord | null>(null);
+  // Adımlar yalnızca dil değişince yeniden kurulur (kalibrasyon zamanlayıcısı sıfırlanmasın).
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- adımlar t() ile güncel dili okur; dil değişince yeniden kurulmalı
+  const onboardingSteps = useMemo(() => buildOnboardingSteps(), [language]);
 
-  const [remainingFreeReceipts, setRemainingFreeReceipts] = useState(3);
-  const [totalAllowedReceipts, setTotalAllowedReceipts] = useState(3);
-
-  const isTr = i18n.lang === 'tr';
-
-  useEffect(() => {
-    const unsubRc = subscribeToSubscriptionChanges(setSubState);
-    const unsubI18n = subscribeI18n(setI18n);
-    return () => {
-      unsubRc();
-      unsubI18n();
-    };
-  }, []);
-
-  const loadData = async () => {
-    await initLocalDatabase();
-
-    const [hasSeenOnboarding, props, tens, pays, receiptInfo] = await Promise.all([
-      getPreference('has_seen_onboarding'),
-      getProperties(),
-      getTenants(),
-      getPayments(),
-      getReceiptAllowanceInfo(),
-    ]);
-
-    if (!hasSeenOnboarding) {
-      setOnboardingVisible(true);
-    }
-
+  const reload = useCallback(async () => {
+    const [props, tens, pays] = await Promise.all([getProperties(), getTenants(), getPayments()]);
     setProperties(props);
     setTenants(tens);
     setPayments(pays);
-    setRemainingFreeReceipts(receiptInfo.remainingFree);
-    setTotalAllowedReceipts(receiptInfo.totalFreeAllowed);
+    setNow(new Date());
+  }, []);
 
-    // Calculate due & overdue alerts
-    const alerts = getRentDueAlerts(tens, props, pays, 5);
-    setDueAlerts(alerts);
-  };
-
+  // Diğer sekmelerde (mülk ekleme, verileri sıfırlama) yapılan değişiklikleri yakala.
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [])
+      void reload();
+    }, [reload])
   );
+
+  // Ayarlar'dan "sihirbazı tekrar başlat" istendi ("prop değişince durumu ayarla" kalıbı).
+  const [handledReplayToken, setHandledReplayToken] = useState(replayToken);
+  if (replayToken !== handledReplayToken) {
+    setHandledReplayToken(replayToken);
+    setOnboardingVisible(true);
+  }
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await reload();
     setRefreshing(false);
   };
 
-  const handleFinishOnboarding = async () => {
-    await setPreference('has_seen_onboarding', 'true');
+  const periodKey = toPeriodKey(now);
+  const totals = summarizePeriod(tenants, payments, periodKey);
+  const dueAlerts = getRentDueAlerts(tenants, properties, payments, 5, now);
+
+  const handleOnboardingFinish = async (answers: Record<string, string>) => {
+    await completeOnboarding(answers);
     setOnboardingVisible(false);
+    if (!isPro) setPaywallVisible(true);
   };
 
-  const checkPdfAllowance = async (): Promise<boolean> => {
-    if (subState.isPro) return true;
-    const info = await getReceiptAllowanceInfo();
-    if (info.remainingFree > 0) return true;
-
-    setReceiptGateVisible(true);
-    return false;
+  /** Makbuz PDF: önce kota, sonra üretim, en son hak düşümü (yalnız başarıdan sonra). */
+  const runExport = async (payment: PaymentRecord) => {
+    if (!canUseUnit()) {
+      triggerHaptic.warning();
+      pendingExport.current = payment;
+      setGateVisible(true);
+      return;
+    }
+    setExportingId(payment.id);
+    try {
+      const landlord = await getLandlordProfile();
+      const result = await exportReceiptPdf({
+        payment,
+        tenant: tenants.find((item) => item.id === payment.tenantId),
+        property: properties.find((item) => item.id === payment.propertyId),
+        landlord,
+        language,
+        isPro,
+      });
+      await consumeUnit();
+      triggerHaptic.success();
+      await recordReviewMilestone();
+      if (result.shared) {
+        await maybeShowInterstitial();
+      }
+    } catch (error) {
+      console.warn('[receipt]', error);
+      Alert.alert(t('errorTitle'), t('tryAgainLater'));
+    } finally {
+      setExportingId(null);
+    }
   };
 
-  // Calculations
-  const totalMonthlyExpectedRent = tenants
-    .filter((t) => t.status === 'active')
-    .reduce((sum, t) => sum + (t.rentAmount || 0), 0);
+  const sendConfirmation = async (payment: PaymentRecord, phone?: string) => {
+    const landlord = await getLandlordProfile();
+    const tenantPhone = phone ?? tenants.find((item) => item.id === payment.tenantId)?.phone ?? '';
+    await sendPaymentConfirmationWhatsApp(payment, tenantPhone, landlord, { language, isPro });
+  };
 
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
+  const remind = async (alert: RentDueAlert) => {
+    triggerHaptic.medium();
+    const landlord = await getLandlordProfile();
+    await sendRentReminderWhatsApp(alert, landlord, { language, isPro });
+  };
 
-  const totalCollectedThisMonth = payments
-    .filter((p) => {
-      const d = new Date(p.createdAt);
-      return (
-        p.status === 'paid' &&
-        d.getMonth() === currentMonth &&
-        d.getFullYear() === currentYear
-      );
-    })
-    .reduce((sum, p) => sum + (p.amount || 0), 0);
-
-  const totalPendingOrOverdue = Math.max(
-    0,
-    totalMonthlyExpectedRent - totalCollectedThisMonth
-  );
+  const handlePaymentSaved = (payment: PaymentRecord, tenant: TenantRecord) => {
+    void reload();
+    Alert.alert(
+      t('paymentSavedTitle'),
+      t('paymentSavedBody', {
+        amount: formatMoney(payment.amount, payment.currency, language),
+        tenant: payment.tenantName,
+        period: displayPeriod(payment, language),
+      }),
+      [
+        { text: t('close'), style: 'cancel' },
+        { text: t('paymentSavedWhatsApp'), onPress: () => void sendConfirmation(payment, tenant.phone) },
+        { text: t('receiptPdf'), onPress: () => void runExport(payment) },
+      ]
+    );
+  };
 
   const handleDeletePayment = (payment: PaymentRecord) => {
+    triggerHaptic.warning();
     Alert.alert(
-      isTr ? 'Ödemeyi Sil' : 'Delete Payment',
-      isTr
-        ? `${payment.tenantName} - ${payment.periodMonthYear} ödemesini silmek istiyor musunuz?`
-        : `Delete payment record for ${payment.tenantName}?`,
+      t('deletePaymentTitle'),
+      t('deletePaymentBody', { tenant: payment.tenantName, period: displayPeriod(payment, language) }),
       [
-        { text: isTr ? 'İptal' : 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: isTr ? 'Sil' : 'Delete',
+          text: t('delete'),
           style: 'destructive',
           onPress: async () => {
             await deletePayment(payment.id);
-            await loadData();
+            await reload();
           },
         },
       ]
     );
   };
 
-  const handleExportPdf = async (payment: PaymentRecord) => {
-    const allowed = await checkPdfAllowance();
-    if (!allowed) return;
-
-    const landlord = await getLandlordProfile();
-    const ten = tenants.find((t) => t.id === payment.tenantId);
-    const prop = properties.find((p) => p.id === payment.propertyId);
-
-    await generateAndShareReceiptPdf({
-      payment,
-      tenant: ten,
-      property: prop,
-      landlord,
-      lang: i18n.lang,
-      isPro: subState.isPro,
-    });
-  };
-
-  const handleSendConfirmationWhatsApp = async (payment: PaymentRecord) => {
-    const landlord = await getLandlordProfile();
-    await sendPaymentConfirmationWhatsApp(payment, landlord, i18n.lang);
-  };
-
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-[#090d16]">
-      <StatusBar style={isDark ? 'light' : 'dark'} />
-
+    <SafeAreaView className="flex-1 bg-canvas dark:bg-canvas-dark" edges={['top']}>
       <ScrollView
-        className="flex-1 px-4"
-        contentContainerStyle={{ paddingBottom: 115, paddingTop: 12 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#10b981" />
-        }>
-        {/* Top Header */}
-        <View className="flex-row items-center justify-between mb-4">
-          <View>
-            <Text className="text-xs font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
-              RentLedger Pro
-            </Text>
-            <Text className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
-              {t('dashboardTitle', i18n.lang)}
-            </Text>
-            <Text className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              {t('dashboardSubtitle', i18n.lang)}
-            </Text>
+        className="flex-1"
+        contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}>
+        {/* Başlık */}
+        <View className="flex-row items-start justify-between gap-3">
+          <View className="flex-1">
+            <Text className="text-xs font-bold uppercase tracking-widest text-accent">{factory.app.name}</Text>
+            <Text className="mt-0.5 text-[26px] font-extrabold text-ink dark:text-ink-dark">{t('dashboardTitle')}</Text>
+            <Text className="mt-0.5 text-sm text-muted dark:text-muted-dark">{t('dashboardSubtitle')}</Text>
           </View>
-
-          {!subState.isPro && (
+          {!isPro ? (
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('upgradeToPro')}
               onPress={() => setPaywallVisible(true)}
-              className="py-2 px-3 rounded-2xl bg-amber-400/15 border border-amber-400/40 flex-row items-center gap-1.5 active:opacity-75">
-              <Sparkles size={14} color="#f59e0b" />
-              <Text className="text-xs font-extrabold text-amber-600 dark:text-amber-400">
-                PRO
-              </Text>
+              className="flex-row items-center gap-1.5 rounded-full border border-warning/40 bg-warning/15 px-3 py-2 active:opacity-70">
+              <Crown size={14} color={colors.warning} />
+              <Text className="text-xs font-extrabold text-warning">{t('paywallBadge')}</Text>
             </Pressable>
-          )}
+          ) : null}
         </View>
 
-        {/* Financial Overview Cards */}
-        <View className="rounded-3xl p-5 mb-5 bg-[#0f172a] dark:bg-[#131b2e] border border-emerald-500/25 shadow-xl">
-          <View className="flex-row items-center justify-between mb-3 border-b border-slate-800 pb-3">
-            <View>
-              <Text className="text-xs font-semibold text-slate-400">
-                {t('totalExpectedRent', i18n.lang)}
-              </Text>
-              <Text className="text-2xl font-black text-white mt-0.5">
-                {formatMoney(totalMonthlyExpectedRent, i18n.currency)}
-              </Text>
-            </View>
-            <View className="py-1 px-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30">
-              <Text className="text-xs font-bold text-emerald-400">
-                {getCurrentPeriodMonthYear(i18n.lang)}
-              </Text>
+        {/* Dönem özeti — para birimi başına ayrı satır */}
+        <Card className="mt-4">
+          <View className="flex-row items-center justify-between gap-3">
+            <Text className="text-xs font-bold uppercase tracking-wider text-muted dark:text-muted-dark">
+              {t('summaryExpected')}
+            </Text>
+            <View className="rounded-full bg-accent/15 px-3 py-1">
+              <Text className="text-xs font-bold text-accent">{formatPeriod(periodKey, language)}</Text>
             </View>
           </View>
-
-          <View className="flex-row gap-3">
-            <View className="flex-1 p-3 rounded-2xl bg-slate-900/80 border border-emerald-500/20">
-              <Text className="text-[11px] font-semibold text-emerald-400">
-                ✓ {t('totalCollectedThisMonth', i18n.lang)}
-              </Text>
-              <Text className="text-base font-extrabold text-white mt-1">
-                {formatMoney(totalCollectedThisMonth, i18n.currency)}
-              </Text>
-            </View>
-
-            <View className="flex-1 p-3 rounded-2xl bg-slate-900/80 border border-amber-500/20">
-              <Text className="text-[11px] font-semibold text-amber-400">
-                ⏰ {t('totalPendingOrOverdue', i18n.lang)}
-              </Text>
-              <Text className="text-base font-extrabold text-white mt-1">
-                {formatMoney(totalPendingOrOverdue, i18n.currency)}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Quick Action Buttons */}
-        <View className="flex-row gap-3 mb-5">
-          <Pressable
-            onPress={() => setNewPaymentVisible(true)}
-            className="flex-1 py-3.5 px-4 rounded-2xl bg-emerald-600 active:opacity-85 flex-row items-center justify-center gap-2 shadow-md">
-            <Plus size={18} color="#ffffff" />
-            <Text className="text-xs font-extrabold text-white">
-              {t('addPaymentBtn', i18n.lang)}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setNewTenantVisible(true)}
-            className="py-3.5 px-4 rounded-2xl bg-white dark:bg-[#131b2e] border border-slate-200 dark:border-slate-800 active:opacity-80 flex-row items-center justify-center gap-2 shadow-sm">
-            <Building2 size={16} color="#10b981" />
-            <Text className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
-              {t('newPropertyBtn', i18n.lang)}
-            </Text>
-          </Pressable>
-        </View>
-
-        {/* Süresi Yaklaşan & Geciken Kiralar UYARI KARTI */}
-        <View className="mb-5">
-          <View className="flex-row items-center justify-between mb-2.5">
-            <View className="flex-row items-center gap-2">
-              <AlertTriangle size={16} color="#f59e0b" />
-              <Text className="text-xs font-extrabold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                {t('overdueAlertTitle', i18n.lang)}
-              </Text>
-            </View>
-            <Text className="text-xs font-bold text-slate-500">
-              {dueAlerts.length} {isTr ? 'Kiracı' : 'Tenants'}
-            </Text>
-          </View>
-
-          {dueAlerts.length === 0 ? (
-            <View className="p-4 rounded-2xl bg-white dark:bg-[#131b2e] border border-slate-200/80 dark:border-slate-800/80 flex-row items-center gap-3">
-              <CheckCircle2 size={20} color="#10b981" />
-              <Text className="text-xs text-slate-600 dark:text-slate-300 font-semibold flex-1">
-                {t('noOverdueAlerts', i18n.lang)}
-              </Text>
-            </View>
+          {totals.length === 0 ? (
+            <Text className="mt-3 text-sm text-muted dark:text-muted-dark">{t('summaryEmpty')}</Text>
           ) : (
-            <View className="gap-2.5">
-              {dueAlerts.map((alert) => {
-                const isOverdue = alert.status === 'overdue';
-                const isToday = alert.status === 'due_today';
-                const badgeColor = isOverdue
-                  ? 'bg-rose-500/15 border-rose-500/30 text-rose-600 dark:text-rose-400'
-                  : isToday
-                    ? 'bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400'
-                    : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400';
-
-                return (
-                  <View
-                    key={alert.tenant.id}
-                    className="p-4 rounded-2xl bg-white dark:bg-[#131b2e] border border-slate-200/80 dark:border-slate-800/90 flex-row items-center justify-between shadow-sm">
-                    <View className="flex-1 pr-3">
-                      <View className="flex-row items-center gap-2 mb-1">
-                        <Text className="text-sm font-extrabold text-slate-900 dark:text-white">
-                          {alert.tenant.name}
-                        </Text>
-                        <View className={`px-2 py-0.5 rounded-md border ${badgeColor}`}>
-                          <Text className="text-[10px] font-extrabold">
-                            {isTr ? alert.statusTextTr : alert.statusTextEn}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text className="text-xs text-slate-500 dark:text-slate-400">
-                        {alert.property?.name || 'Mülk'} •{' '}
-                        <Text className="font-bold text-slate-700 dark:text-slate-300">
-                          {formatMoney(alert.tenant.rentAmount, alert.tenant.currency)}
-                        </Text>
-                      </Text>
-                    </View>
-
-                    <Pressable
-                      onPress={async () => {
-                        const landlord = await getLandlordProfile();
-                        await sendRentReminderWhatsApp(alert, landlord, i18n.lang);
-                      }}
-                      className="py-2 px-3 rounded-xl bg-emerald-600 active:opacity-80 flex-row items-center gap-1.5 shadow-sm">
-                      <MessageCircle size={14} color="#ffffff" />
-                      <Text className="text-xs font-extrabold text-white">
-                        {t('remindViaWhatsApp', i18n.lang)}
-                      </Text>
-                    </Pressable>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
-
-        {/* Banner Ad Area */}
-        <View className="mb-5">
-          <SmartAdBanner isPro={subState.isPro} onUpgradePress={() => setPaywallVisible(true)} />
-        </View>
-
-        {/* Son Kira Tahsilatları Listesi */}
-        <View className="mb-5">
-          <View className="flex-row items-center justify-between mb-3">
-            <View className="flex-row items-center gap-2">
-              <Receipt size={16} color="#10b981" />
-              <Text className="text-xs font-extrabold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                {t('recentPayments', i18n.lang)}
-              </Text>
-            </View>
-            <Text className="text-xs font-bold text-slate-500">
-              {payments.length} {isTr ? 'Tahsilat' : 'Receipts'}
-            </Text>
-          </View>
-
-          {payments.length === 0 ? (
-            <View className="p-6 rounded-3xl bg-white dark:bg-[#131b2e] border border-dashed border-slate-300 dark:border-slate-800 items-center justify-center">
-              <View className="w-12 h-12 rounded-2xl bg-emerald-500/10 items-center justify-center mb-3">
-                <Receipt size={24} color="#10b981" />
-              </View>
-              <Text className="text-sm font-extrabold text-slate-900 dark:text-white mb-1 text-center">
-                {t('noPaymentsYet', i18n.lang)}
-              </Text>
-              <Text className="text-xs text-slate-500 dark:text-slate-400 text-center mb-4 px-4">
-                {t('noPaymentsSub', i18n.lang)}
-              </Text>
-              <Pressable
-                onPress={() => setNewPaymentVisible(true)}
-                className="py-2.5 px-4 rounded-xl bg-emerald-600 flex-row items-center gap-1.5 active:opacity-85 shadow-sm">
-                <Plus size={16} color="#ffffff" />
-                <Text className="text-xs font-extrabold text-white">
-                  {t('addPaymentBtn', i18n.lang)}
+            totals.map((row, index) => (
+              <View
+                key={row.currency}
+                className={index > 0 ? 'mt-4 border-t border-line pt-4 dark:border-line-dark' : 'mt-2'}>
+                <Text className="text-2xl font-extrabold text-ink dark:text-ink-dark">
+                  {formatMoney(row.expected, row.currency, language)}
                 </Text>
-              </Pressable>
-            </View>
-          ) : (
-            <View className="gap-3">
-              {payments.map((p) => (
-                <View
-                  key={p.id}
-                  className="p-4 rounded-3xl bg-white dark:bg-[#131b2e] border border-slate-200/80 dark:border-slate-800/90 shadow-sm">
-                  {/* Row 1: Header & Amount */}
-                  <View className="flex-row items-center justify-between mb-2">
-                    <View className="flex-1 pr-2">
-                      <View className="flex-row items-center gap-2">
-                        <Text className="text-sm font-extrabold text-slate-900 dark:text-white">
-                          {p.tenantName}
-                        </Text>
-                        <View className="py-0.5 px-2 rounded-md bg-emerald-500/10 border border-emerald-500/25">
-                          <Text className="text-[10px] font-black text-emerald-600 dark:text-emerald-400">
-                            {p.receiptNo}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        {p.propertyName} • {p.periodMonthYear}
-                      </Text>
-                    </View>
-
-                    <Text className="text-base font-black text-emerald-600 dark:text-emerald-400">
-                      {formatMoney(p.amount, p.currency)}
+                <View className="mt-3 flex-row gap-3">
+                  <View className="flex-1 rounded-2xl bg-accent/10 p-3">
+                    <Text className="text-[11px] font-semibold text-accent">{t('summaryCollected')}</Text>
+                    <Text className="mt-1 text-base font-extrabold text-ink dark:text-ink-dark">
+                      {formatMoney(row.collected, row.currency, language)}
                     </Text>
                   </View>
-
-                  {/* Row 2: Date & Actions */}
-                  <View className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex-row items-center justify-between">
-                    <Text className="text-[11px] text-slate-400">
-                      {p.paymentDate} • {p.paymentMethod === 'bank_transfer' ? (isTr ? 'Havale/EFT' : 'Bank') : (isTr ? 'Nakit' : 'Cash')}
+                  <View className="flex-1 rounded-2xl bg-warning/10 p-3">
+                    <Text className="text-[11px] font-semibold text-warning">{t('summaryOutstanding')}</Text>
+                    <Text className="mt-1 text-base font-extrabold text-ink dark:text-ink-dark">
+                      {formatMoney(row.outstanding, row.currency, language)}
                     </Text>
-
-                    <View className="flex-row items-center gap-2">
-                      <Pressable
-                        onPress={() => handleSendConfirmationWhatsApp(p)}
-                        className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 active:opacity-75">
-                        <MessageCircle size={15} color="#10b981" />
-                      </Pressable>
-
-                      <Pressable
-                        onPress={() => handleExportPdf(p)}
-                        className="py-1.5 px-3 rounded-xl bg-slate-900 dark:bg-slate-800 flex-row items-center gap-1 active:opacity-75">
-                        <FileText size={13} color="#ffffff" />
-                        <Text className="text-xs font-bold text-white">
-                          {t('viewPdfReceipt', i18n.lang)}
-                        </Text>
-                      </Pressable>
-
-                      <Pressable
-                        onPress={() => handleDeletePayment(p)}
-                        className="p-2 rounded-xl bg-rose-500/10 active:opacity-70">
-                        <Trash2 size={15} color="#f43f5e" />
-                      </Pressable>
-                    </View>
                   </View>
                 </View>
-              ))}
-            </View>
+              </View>
+            ))
           )}
+        </Card>
+
+        {/* Hızlı eylemler */}
+        <View className="mt-4 flex-row gap-3">
+          <Button
+            label={t('addPaymentBtn')}
+            icon={<Plus size={18} color={colors.onBrand} />}
+            onPress={() => setPaymentVisible(true)}
+            className="flex-1"
+          />
+          <Button
+            label={t('newPropertyBtn')}
+            variant="secondary"
+            icon={<Building2 size={18} color={colors.accent} />}
+            onPress={() => setPropertyVisible(true)}
+            className="flex-1"
+          />
         </View>
+
+        {!isPro ? (
+          <Text className="mt-3 text-xs font-semibold text-muted dark:text-muted-dark">
+            {quota.unlimited ? t('quotaUnlimited') : t('quotaLeft', { count: quota.remaining })}
+          </Text>
+        ) : null}
+
+        {/* Vadesi gelen / geciken */}
+        <SectionHeader
+          icon={<AlertTriangle size={16} color={colors.warning} />}
+          title={t('dueSectionTitle')}
+          count={dueAlerts.length}
+        />
+        {dueAlerts.length === 0 ? (
+          <Card className="flex-row items-center gap-3">
+            <CheckCircle2 size={20} color={colors.accent} />
+            <Text className="flex-1 text-sm text-muted dark:text-muted-dark">{t('dueNone')}</Text>
+          </Card>
+        ) : (
+          <View className="gap-3">
+            {dueAlerts.map((alert) => (
+              <Card key={alert.tenant.id} className="flex-row items-center justify-between gap-3">
+                <View className="flex-1">
+                  <View className="flex-row flex-wrap items-center gap-2">
+                    <Text className="text-[15px] font-bold text-ink dark:text-ink-dark">{alert.tenant.name}</Text>
+                    <Text className={`overflow-hidden rounded-md px-2 py-0.5 text-[11px] font-bold ${BADGE[alert.status]}`}>
+                      {dueStatusLabel(alert, language)}
+                    </Text>
+                  </View>
+                  <Text className="mt-1 text-xs text-muted dark:text-muted-dark">
+                    {alert.property?.name || alert.tenant.propertyName || t('unknownProperty')} ·{' '}
+                    <Text className="font-bold text-ink dark:text-ink-dark">
+                      {formatMoney(alert.amountDue, alert.tenant.currency, language)}
+                    </Text>
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('sendWhatsApp')}
+                  onPress={() => void remind(alert)}
+                  className="min-h-[40px] flex-row items-center gap-1.5 rounded-xl bg-accent px-3 active:opacity-80">
+                  <MessageCircle size={15} color={colors.onBrand} />
+                  <Text className="text-xs font-extrabold text-on-brand">{t('remindViaWhatsApp')}</Text>
+                </Pressable>
+              </Card>
+            ))}
+          </View>
+        )}
+
+        {/* Son tahsilatlar */}
+        <SectionHeader
+          icon={<Receipt size={16} color={colors.accent} />}
+          title={t('recentPayments')}
+          count={payments.length}
+        />
+        {payments.length === 0 ? (
+          <Card className="items-center py-6">
+            <View className="h-14 w-14 items-center justify-center rounded-2xl bg-accent/10">
+              <Receipt size={26} color={colors.accent} />
+            </View>
+            <Text className="mt-3 text-center text-base font-bold text-ink dark:text-ink-dark">{t('noPaymentsYet')}</Text>
+            <Text className="mt-1 px-4 text-center text-sm text-muted dark:text-muted-dark">{t('noPaymentsSub')}</Text>
+            <Button
+              label={t('addPaymentBtn')}
+              variant="secondary"
+              onPress={() => setPaymentVisible(true)}
+              className="mt-4 self-stretch"
+            />
+          </Card>
+        ) : (
+          <View className="gap-3">
+            {payments.map((payment) => (
+              <Card key={payment.id}>
+                <View className="flex-row items-start justify-between gap-3">
+                  <View className="flex-1">
+                    <View className="flex-row flex-wrap items-center gap-2">
+                      <Text className="text-[15px] font-bold text-ink dark:text-ink-dark">{payment.tenantName}</Text>
+                      <Text className="overflow-hidden rounded-md bg-elevated px-2 py-0.5 text-[11px] font-bold text-muted dark:bg-elevated-dark dark:text-muted-dark">
+                        {payment.receiptNo}
+                      </Text>
+                    </View>
+                    <Text className="mt-0.5 text-xs text-muted dark:text-muted-dark">
+                      {payment.propertyName} · {displayPeriod(payment, language)}
+                    </Text>
+                  </View>
+                  <Text className="text-base font-extrabold text-accent">
+                    {formatMoney(payment.amount, payment.currency, language)}
+                  </Text>
+                </View>
+
+                <View className="mt-3 flex-row items-center justify-between gap-2 border-t border-line pt-3 dark:border-line-dark">
+                  <Text className="flex-1 text-xs text-muted dark:text-muted-dark" numberOfLines={1}>
+                    {displayPaymentDate(payment.paymentDate, language)} ·{' '}
+                    {paymentMethodLabel(payment.paymentMethod, language)}
+                  </Text>
+                  <View className="flex-row items-center gap-2">
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t('sendWhatsApp')}
+                      onPress={() => void sendConfirmation(payment)}
+                      hitSlop={6}
+                      className="h-9 w-9 items-center justify-center rounded-xl bg-accent/10 active:opacity-70">
+                      <MessageCircle size={16} color={colors.accent} />
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t('receiptPdf')}
+                      onPress={() => void runExport(payment)}
+                      disabled={exportingId !== null}
+                      className="h-9 flex-row items-center gap-1.5 rounded-xl bg-primary px-3 active:opacity-80">
+                      {exportingId === payment.id ? (
+                        <ActivityIndicator size="small" color={colors.onBrand} />
+                      ) : (
+                        <FileText size={14} color={colors.onBrand} />
+                      )}
+                      <Text className="text-xs font-bold text-on-brand">{t('receiptPdf')}</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t('delete')}
+                      onPress={() => handleDeletePayment(payment)}
+                      hitSlop={6}
+                      className="h-9 w-9 items-center justify-center rounded-xl bg-danger/10 active:opacity-70">
+                      <Trash2 size={16} color={colors.danger} />
+                    </Pressable>
+                  </View>
+                </View>
+              </Card>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
-      {/* Modals */}
+      <SmartAdBanner />
+
       <NewPaymentModal
-        visible={newPaymentVisible}
-        onClose={() => setNewPaymentVisible(false)}
-        onSaved={async () => {
-          await loadData();
-          requestInterstitialAdWithUpsell();
-        }}
+        visible={paymentVisible}
+        onClose={() => setPaymentVisible(false)}
+        onSaved={handlePaymentSaved}
         tenants={tenants}
         properties={properties}
-        lang={i18n.lang}
-        isPro={subState.isPro}
-        onCheckPdfAllowance={checkPdfAllowance}
       />
-
       <NewTenantPropertyModal
-        visible={newTenantVisible}
-        onClose={() => setNewTenantVisible(false)}
-        onSaved={async () => {
-          await loadData();
-          requestInterstitialAdWithUpsell();
-        }}
-        lang={i18n.lang}
-        isPro={subState.isPro}
+        visible={propertyVisible}
+        onClose={() => setPropertyVisible(false)}
+        onSaved={() => void reload()}
         currentPropertyCount={properties.length}
         onOpenPaywall={() => setPaywallVisible(true)}
       />
-
-      <ReceiptGateModal
-        visible={receiptGateVisible}
-        onClose={() => setReceiptGateVisible(false)}
-        onUnlocked={loadData}
-        onOpenPaywall={() => setPaywallVisible(true)}
-        remainingFree={remainingFreeReceipts}
-        totalAllowed={totalAllowedReceipts}
-        lang={i18n.lang}
+      <RentPaywall visible={paywallVisible} onClose={() => setPaywallVisible(false)} />
+      <QuotaGateModal
+        visible={gateVisible}
+        onClose={() => setGateVisible(false)}
+        onUpgrade={() => setPaywallVisible(true)}
+        onCreditEarned={() => {
+          const payment = pendingExport.current;
+          pendingExport.current = null;
+          if (payment) void runExport(payment);
+        }}
       />
-
-      <PaywallModal
-        visible={paywallVisible}
-        onClose={() => setPaywallVisible(false)}
-        onPurchaseSuccess={(newState) => setSubState(newState)}
-      />
-
-      <OnboardingModal
-        visible={onboardingVisible}
-        onFinish={handleFinishOnboarding}
-        lang={i18n.lang}
-      />
+      <OnboardingModal visible={onboardingVisible} steps={onboardingSteps} onFinish={handleOnboardingFinish} />
     </SafeAreaView>
+  );
+}
+
+function SectionHeader({ icon, title, count }: { icon: ReactNode; title: string; count: number }) {
+  return (
+    <View className="mb-2.5 mt-6 flex-row items-center justify-between">
+      <View className="flex-row items-center gap-2">
+        {icon}
+        <Text className="text-xs font-extrabold uppercase tracking-wider text-ink dark:text-ink-dark">{title}</Text>
+      </View>
+      <View className="min-w-[28px] items-center rounded-full bg-elevated px-2 py-0.5 dark:bg-elevated-dark">
+        <Text className="text-xs font-bold text-muted dark:text-muted-dark">{count}</Text>
+      </View>
+    </View>
   );
 }

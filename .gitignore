@@ -30,8 +30,14 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
+# local env files & secrets (ASLA git'e eklenmez)
+.env
+.env.*
+!.env.example
+*.keystore
+credentials.json
+play-service-account*.json
+*service-account*.json
 
 # typescript
 *.tsbuildinfo
@@ -41,5 +47,3 @@ example
 # generated native folders
 /ios
 /android
-*.aab
-*.apk

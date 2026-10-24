@@ -1,388 +1,420 @@
-import { Platform } from 'react-native';
-import { getPreference, setPreference } from './database';
+import { useSyncExternalStore } from 'react';
+import { Linking, Platform } from 'react-native';
+import Purchases, {
+  type CustomerInfo,
+  type PurchasesError,
+  type PurchasesPackage,
+} from 'react-native-purchases';
+
+import { factory, getRevenueCatApiKey } from '@/config';
 
 /**
- * RevenueCat (react-native-purchases) Yapılandırma ve Yardımcı Servisi
- * Not: Expo Go ortamında native modül bulunmadığında uygulamanın çökmemesi için
- * güvenli (graceful fallback) sarmalayıcı içerir. Development Build / Production'da tam çalışır.
+ * RevenueCat abonelik servisi.
+ *
+ * Güvenlik kuralları (Altın Şasi v2):
+ *  1. Pro YALNIZCA mağazadan gelen aktif entitlement ile açılır.
+ *  2. İptal edilen / bekleyen / hatalı satın alma asla Pro vermez.
+ *  3. Simüle satın alma sadece `__DEV__` + API anahtarı yokken (Expo Go/önizleme) çalışır.
+ *  4. Fiyatlar her zaman mağazadan (offering) okunur; koda fiyat yazılmaz.
  */
 
-export const REVENUECAT_CONFIG = {
-  appleApiKey: process.env.EXPO_PUBLIC_RC_IOS_KEY || 'appl_replace_with_your_revenuecat_ios_key',
-  googleApiKey:
-    process.env.EXPO_PUBLIC_RC_ANDROID_KEY || 'goog_vOvioGuqvGayMahpLooYhtmqOrQ',
-  entitlementId: 'pro_access',
-};
-
-export type PlanTierId = 'weekly' | 'monthly' | 'annual' | 'lifetime';
-
-export interface PricingPlan {
-  id: PlanTierId;
-  rcPackageIdentifier: string;
-  title: string;
-  subtitle: string;
-  priceString: string;
-  periodLabel: string;
-  badge?: string;
-  savingsText?: string;
-  highlight?: boolean;
-}
-
-export const PRICING_PLANS_BY_LANG: Record<'en' | 'tr', PricingPlan[]> = {
-  tr: [
-    {
-      id: 'weekly',
-      rcPackageIdentifier: '$rc_weekly',
-      title: 'Haftalık Başlangıç',
-      subtitle: 'Kısa süreli deneme ve hızlı tahsilat',
-      priceString: '₺79,99',
-      periodLabel: '/ hafta',
-    },
-    {
-      id: 'monthly',
-      rcPackageIdentifier: '$rc_monthly',
-      title: 'Aylık Pro Paket',
-      subtitle: 'Düzenli mülk ve kiracı takibi için ideal',
-      priceString: '₺199,99',
-      periodLabel: '/ ay',
-      badge: 'ESNEK AYLIK PLAN',
-    },
-    {
-      id: 'annual',
-      rcPackageIdentifier: '$rc_annual',
-      title: 'Yıllık Pro Paket',
-      subtitle: 'Aylık sadece ₺66 • İstediğiniz zaman iptal edin',
-      priceString: '₺799,99',
-      periodLabel: '/ yıl',
-      badge: 'EN POPÜLER • %75 TASARRUF',
-      savingsText: '%75 İndirimli',
-      highlight: true,
-    },
-    {
-      id: 'lifetime',
-      rcPackageIdentifier: '$rc_lifetime',
-      title: 'Ömür Boyu Sınırsız',
-      subtitle: 'Tek seferlik ödeme, sonsuza kadar sınırsız mülk & makbuz',
-      priceString: '₺1.499,99',
-      periodLabel: 'tek ödeme',
-      badge: 'EN İYİ DEĞER',
-    },
-  ],
-  en: [
-    {
-      id: 'weekly',
-      rcPackageIdentifier: '$rc_weekly',
-      title: 'Weekly Starter',
-      subtitle: 'Short-term trial & fast receipts',
-      priceString: '$4.99',
-      periodLabel: '/ week',
-    },
-    {
-      id: 'monthly',
-      rcPackageIdentifier: '$rc_monthly',
-      title: 'Monthly Pro',
-      subtitle: 'Ideal for regular rent & tenant tracking',
-      priceString: '$9.99',
-      periodLabel: '/ mo',
-      badge: 'FLEXIBLE PLAN',
-    },
-    {
-      id: 'annual',
-      rcPackageIdentifier: '$rc_annual',
-      title: 'Annual Pro',
-      subtitle: 'Only $3.33/mo • Cancel anytime',
-      priceString: '$39.99',
-      periodLabel: '/ year',
-      badge: 'MOST POPULAR • 75% OFF',
-      savingsText: 'Save 75%',
-      highlight: true,
-    },
-    {
-      id: 'lifetime',
-      rcPackageIdentifier: '$rc_lifetime',
-      title: 'Lifetime Unlimited',
-      subtitle: 'One-time payment, unlimited properties & receipts forever',
-      priceString: '$79.99',
-      periodLabel: 'one-time',
-      badge: 'BEST VALUE',
-    },
-  ],
-};
-
-export function getPricingPlans(lang: 'en' | 'tr' = 'en'): PricingPlan[] {
-  return PRICING_PLANS_BY_LANG[lang] || PRICING_PLANS_BY_LANG.en;
-}
-
-export const PRICING_PLANS: PricingPlan[] = PRICING_PLANS_BY_LANG.en;
+export type PurchasesMode = 'store' | 'dev-preview' | 'unavailable';
 
 export interface SubscriptionState {
+  /** İlk entitlement kontrolü tamamlandı mı? */
+  ready: boolean;
   isPro: boolean;
-  activePlan: string;
-  selectedTier?: PlanTierId;
-  isConfigured: boolean;
-  mode: 'native' | 'mock';
+  mode: PurchasesMode;
+  activeProductId: string | null;
+  /** Ömür boyu satın almada null. */
+  expirationDate: string | null;
+  willRenew: boolean;
+  managementUrl: string | null;
 }
 
-type Listener = (state: SubscriptionState) => void;
-const listeners = new Set<Listener>();
+export type PlanKind = 'weekly' | 'monthly' | 'annual' | 'lifetime' | 'other';
 
-let currentSubscriptionState: SubscriptionState = {
+/** Ücretsiz deneme süresi. Haftalar güne çevrilir (P1W → 7 gün), yıllar aya. */
+export interface FreeTrial {
+  unit: 'day' | 'month';
+  count: number;
+}
+
+export interface PaywallPlan {
+  id: string;
+  kind: PlanKind;
+  priceString: string;
+  price: number;
+  currencyCode: string;
+  pricePerMonthString: string | null;
+  /** En pahalı haftalık maliyete göre gerçek tasarruf yüzdesi (yoksa null). */
+  savingsPercent: number | null;
+  isBestValue: boolean;
+  /**
+   * Bu kullanıcının bu planda alabileceği ücretsiz deneme; yoksa null.
+   * Mağazada tanımlı ve kullanıcı uygunsa dolu gelir (koda deneme süresi yazılmaz).
+   */
+  freeTrial: FreeTrial | null;
+}
+
+export type OfferingsResult =
+  | { status: 'ok'; plans: PaywallPlan[]; mode: PurchasesMode }
+  | { status: 'unavailable'; message: string };
+
+export type PurchaseOutcome =
+  | { status: 'success' }
+  | { status: 'cancelled' }
+  | { status: 'pending' }
+  | { status: 'error'; message: string; code?: string };
+
+export type RestoreOutcome =
+  | { status: 'restored' }
+  | { status: 'not_found' }
+  | { status: 'error'; message: string };
+
+const INITIAL_STATE: SubscriptionState = {
+  ready: false,
   isPro: false,
-  activePlan: 'Starter Plan (Free)',
-  isConfigured: true,
-  mode: 'mock',
+  mode: 'unavailable',
+  activeProductId: null,
+  expirationDate: null,
+  willRenew: false,
+  managementUrl: null,
 };
 
-let isInitialized = false;
+type Listener = () => void;
+const listeners = new Set<Listener>();
+let state: SubscriptionState = INITIAL_STATE;
+let initPromise: Promise<SubscriptionState> | null = null;
+const packagesById = new Map<string, PurchasesPackage>();
 
-function notifyListeners(newState: SubscriptionState) {
-  currentSubscriptionState = newState;
-  listeners.forEach((listener) => listener(newState));
+function setState(patch: Partial<SubscriptionState>): void {
+  state = { ...state, ...patch };
+  listeners.forEach((listener) => listener());
 }
 
-export function subscribeToSubscriptionChanges(listener: Listener): () => void {
+export function getSubscriptionState(): SubscriptionState {
+  return state;
+}
+
+export function subscribeSubscription(listener: Listener): () => void {
   listeners.add(listener);
-  listener(currentSubscriptionState);
   return () => {
     listeners.delete(listener);
   };
 }
 
-export function getCurrentSubscriptionState(): SubscriptionState {
-  return currentSubscriptionState;
+export function useSubscription(): SubscriptionState {
+  return useSyncExternalStore(subscribeSubscription, getSubscriptionState, getSubscriptionState);
+}
+
+function applyCustomerInfo(info: CustomerInfo): void {
+  const entitlement = info.entitlements.active[factory.monetization.revenueCat.entitlementId];
+  setState({
+    ready: true,
+    mode: 'store',
+    isPro: entitlement !== undefined,
+    activeProductId: entitlement?.productIdentifier ?? null,
+    expirationDate: entitlement?.expirationDate ?? null,
+    willRenew: entitlement?.willRenew ?? false,
+    managementUrl: info.managementURL ?? null,
+  });
+}
+
+function hasUsableApiKey(apiKey: string): boolean {
+  return apiKey.length > 0 && !apiKey.includes('replace');
+}
+
+/** Uygulama açılışında bir kez çağrılır (tekrar çağrılması güvenlidir). */
+export function initPurchases(): Promise<SubscriptionState> {
+  if (!initPromise) {
+    initPromise = configure();
+  }
+  return initPromise;
+}
+
+async function configure(): Promise<SubscriptionState> {
+  const apiKey = getRevenueCatApiKey();
+
+  if (!hasUsableApiKey(apiKey)) {
+    if (__DEV__) {
+      setState({ ready: true, mode: 'dev-preview', isPro: false });
+    } else {
+      console.warn(`[purchases] ${Platform.OS} için RevenueCat anahtarı yok; satın alma kapalı.`);
+      setState({ ready: true, mode: 'unavailable', isPro: false });
+    }
+    return state;
+  }
+
+  try {
+    await Purchases.setLogLevel(
+      __DEV__ ? Purchases.LOG_LEVEL.DEBUG : Purchases.LOG_LEVEL.WARN
+    ).catch(() => {});
+    Purchases.configure({ apiKey });
+    Purchases.addCustomerInfoUpdateListener(applyCustomerInfo);
+  } catch (error) {
+    console.warn('[purchases] RevenueCat yapılandırılamadı:', error);
+    setState({ ready: true, mode: 'unavailable', isPro: false });
+    return state;
+  }
+
+  try {
+    applyCustomerInfo(await Purchases.getCustomerInfo());
+  } catch (error) {
+    // Yapılandırıldı ama müşteri bilgisi alınamadı (ör. ilk açılışta çevrimdışı).
+    // Dinleyicinin zaten bildirdiği Pro durumunu EZME; yalnızca hazır işaretle.
+    console.warn('[purchases] Müşteri bilgisi alınamadı:', error);
+    setState({ ready: true, mode: 'store' });
+  }
+  return state;
+}
+
+// ----------------------------- Paywall planları -----------------------------
+
+function planKindOf(pkg: PurchasesPackage): PlanKind {
+  switch (pkg.packageType) {
+    case Purchases.PACKAGE_TYPE.WEEKLY:
+      return 'weekly';
+    case Purchases.PACKAGE_TYPE.MONTHLY:
+      return 'monthly';
+    case Purchases.PACKAGE_TYPE.ANNUAL:
+      return 'annual';
+    case Purchases.PACKAGE_TYPE.LIFETIME:
+      return 'lifetime';
+    default:
+      return 'other';
+  }
+}
+
+const KIND_ORDER: PlanKind[] = ['annual', 'monthly', 'weekly', 'lifetime', 'other'];
+
+function weeklyCost(kind: PlanKind, price: number): number | null {
+  switch (kind) {
+    case 'weekly':
+      return price;
+    case 'monthly':
+      return (price * 12) / 52;
+    case 'annual':
+      return price / 52;
+    default:
+      return null;
+  }
+}
+
+function trialFromPeriod(unit: string, value: number): FreeTrial | null {
+  if (!Number.isFinite(value) || value <= 0) return null;
+  switch (unit) {
+    case 'DAY':
+      return { unit: 'day', count: value };
+    case 'WEEK':
+      return { unit: 'day', count: value * 7 };
+    case 'MONTH':
+      return { unit: 'month', count: value };
+    case 'YEAR':
+      return { unit: 'month', count: value * 12 };
+    default:
+      return null;
+  }
 }
 
 /**
- * Gerçek RevenueCat API anahtarı yapılandırıldığında mağazadan (Google Play / App Store)
- * yerelleştirilmiş canlı fiyatları (`pkg.product.priceString`) çeker ve 3 pakete (`weekly`, `annual`, `lifetime`) eşler.
- * Sandbox veya önizleme ortamlarında `PRICING_PLANS` varsayılanlarına döner.
+ * Google Play: RevenueCat `defaultOption` olarak kullanıcının uygun olduğu en uzun
+ * ücretsiz denemeyi seçer ve `purchasePackage` da bu seçeneği satın alır; Play,
+ * uygun olmayan teklifleri hiç döndürmez.
+ * App Store: tanıtım fiyatı ücretsizse ve RevenueCat kullanıcıyı uygun bulduysa.
  */
-export async function fetchLivePricingPlans(
-  lang: 'en' | 'tr' = 'en'
-): Promise<PricingPlan[]> {
-  const basePlans = getPricingPlans(lang);
-  if (Platform.OS === 'web') {
-    return basePlans;
+function freeTrialOf(pkg: PurchasesPackage, iosEligibleIds: Set<string>): FreeTrial | null {
+  const { product } = pkg;
+  if (Platform.OS === 'android') {
+    const phase = product.defaultOption?.freePhase;
+    return phase ? trialFromPeriod(phase.billingPeriod.unit, phase.billingPeriod.value) : null;
   }
-
-  try {
-    const PurchasesModule = await import('react-native-purchases');
-    const Purchases = PurchasesModule.default;
-    const apiKey =
-      Platform.OS === 'ios' ? REVENUECAT_CONFIG.appleApiKey : REVENUECAT_CONFIG.googleApiKey;
-
-    if (!apiKey.includes('replace_with_your')) {
-      if (!isInitialized) {
-        Purchases.configure({ apiKey });
-        isInitialized = true;
-      }
-
-      const offerings = await Purchases.getOfferings();
-      const availablePackages = offerings.current?.availablePackages || [];
-
-      if (availablePackages.length > 0) {
-        return basePlans.map((plan) => {
-          const matchedPkg = availablePackages.find(
-            (pkg) =>
-              pkg.identifier === plan.rcPackageIdentifier ||
-              pkg.identifier.toLowerCase().includes(plan.id)
-          );
-
-          if (matchedPkg?.product?.priceString) {
-            return {
-              ...plan,
-              priceString: matchedPkg.product.priceString,
-            };
-          }
-          return plan;
-        });
-      }
-    }
-  } catch {
-    // Sandbox / Expo Go ortamında varsayılan fiyat listesini kullan
-  }
-
-  return basePlans;
+  const intro = product.introPrice;
+  if (!intro || intro.price !== 0 || !iosEligibleIds.has(product.identifier)) return null;
+  return trialFromPeriod(intro.periodUnit, intro.periodNumberOfUnits * Math.max(1, intro.cycles));
 }
 
-export async function initializeRevenueCat(): Promise<SubscriptionState> {
-  // Önce yerel veritabanında saklanan simülasyon/abonelik tercihini kontrol et
-  const savedPro = await getPreference('rc_is_pro');
-  const savedPlan = await getPreference('rc_active_plan');
-
-  if (Platform.OS === 'web') {
-    const isPro = savedPro === 'true';
-    const state: SubscriptionState = {
-      isPro,
-      activePlan: isPro ? savedPlan || 'Factory Pro (Yıllık)' : 'Free Tier (Web)',
-      isConfigured: false,
-      mode: 'mock',
-    };
-    notifyListeners(state);
-    return state;
-  }
-
+async function iosTrialEligibleIds(packages: PurchasesPackage[]): Promise<Set<string>> {
+  const candidates = packages
+    .filter((pkg) => pkg.product.introPrice?.price === 0)
+    .map((pkg) => pkg.product.identifier);
+  if (Platform.OS !== 'ios' || candidates.length === 0) return new Set();
   try {
-    const PurchasesModule = await import('react-native-purchases');
-    const Purchases = PurchasesModule.default;
-    const LOG_LEVEL = PurchasesModule.LOG_LEVEL;
+    const result = await Purchases.checkTrialOrIntroductoryPriceEligibility(candidates);
+    const eligible = Purchases.INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_ELIGIBLE;
+    return new Set(candidates.filter((id) => result[id]?.status === eligible));
+  } catch {
+    // Uygunluk bilinmiyorsa deneme vaat etme.
+    return new Set();
+  }
+}
 
-    const apiKey =
-      Platform.OS === 'ios' ? REVENUECAT_CONFIG.appleApiKey : REVENUECAT_CONFIG.googleApiKey;
+/** Gerçek mağaza fiyatlarından tasarruf yüzdesi hesaplar; uydurma "%85" rozetleri yok. */
+function withSavings(plans: Omit<PaywallPlan, 'savingsPercent' | 'isBestValue'>[]): PaywallPlan[] {
+  const costs = plans
+    .map((plan) => weeklyCost(plan.kind, plan.price))
+    .filter((cost): cost is number => cost !== null && cost > 0);
+  const maxWeekly = costs.length > 0 ? Math.max(...costs) : null;
 
-    if (apiKey.includes('replace_with_your')) {
-      const isPro = savedPro === 'true';
-      const state: SubscriptionState = {
-        isPro,
-        activePlan: isPro ? savedPlan || 'Factory Pro (Aktif)' : 'Free Plan',
-        isConfigured: true,
-        mode: 'mock',
+  return plans
+    .map((plan) => {
+      const cost = weeklyCost(plan.kind, plan.price);
+      const savings =
+        maxWeekly && cost !== null && cost < maxWeekly
+          ? Math.floor((1 - cost / maxWeekly) * 100)
+          : null;
+      return {
+        ...plan,
+        savingsPercent: savings !== null && savings >= 10 ? savings : null,
+        isBestValue: plan.kind === 'annual',
       };
-      notifyListeners(state);
-      return state;
-    }
-
-    if (!isInitialized) {
-      Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-      Purchases.configure({ apiKey });
-      isInitialized = true;
-    }
-
-    const customerInfo = await Purchases.getCustomerInfo();
-    const isPro =
-      typeof customerInfo.entitlements.active[REVENUECAT_CONFIG.entitlementId] !== 'undefined';
-
-    const state: SubscriptionState = {
-      isPro,
-      activePlan: isPro ? 'Factory Pro' : 'Free Plan',
-      isConfigured: true,
-      mode: 'native',
-    };
-    notifyListeners(state);
-    return state;
-  } catch {
-    const isPro = savedPro === 'true';
-    const state: SubscriptionState = {
-      isPro,
-      activePlan: isPro ? savedPlan || 'Factory Pro (Aktif)' : 'Free Plan',
-      isConfigured: true,
-      mode: 'mock',
-    };
-    notifyListeners(state);
-    return state;
-  }
+    })
+    .sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
 }
 
-export async function purchaseSubscriptionPlan(planId: PlanTierId): Promise<SubscriptionState> {
-  const plan = PRICING_PLANS.find((p) => p.id === planId) || PRICING_PLANS[1];
-
-  try {
-    const PurchasesModule = await import('react-native-purchases');
-    const Purchases = PurchasesModule.default;
-    const apiKey =
-      Platform.OS === 'ios' ? REVENUECAT_CONFIG.appleApiKey : REVENUECAT_CONFIG.googleApiKey;
-
-    if (!apiKey.includes('replace_with_your') && isInitialized) {
-      const offerings = await Purchases.getOfferings();
-      const availablePackages = offerings.current?.availablePackages || [];
-      const targetPkg = availablePackages.find(
-        (pkg) => pkg.identifier === plan.rcPackageIdentifier || pkg.identifier.includes(planId)
-      );
-
-      if (targetPkg) {
-        const { customerInfo } = await Purchases.purchasePackage(targetPkg);
-        const isPro =
-          typeof customerInfo.entitlements.active[REVENUECAT_CONFIG.entitlementId] !== 'undefined';
-        const state: SubscriptionState = {
-          isPro,
-          activePlan: isPro ? `Pro (${plan.title})` : 'Free Plan',
-          selectedTier: planId,
-          isConfigured: true,
-          mode: 'native',
-        };
-        await setPreference('rc_is_pro', isPro ? 'true' : 'false');
-        await setPreference('rc_active_plan', state.activePlan);
-        notifyListeners(state);
-        return state;
-      }
-    }
-  } catch {
-    // Expo Go veya Demo modunda simüle edilmiş satın alma akışına geç
-  }
-
-  const activePlanName = `Factory Pro (${plan.title})`;
-  await setPreference('rc_is_pro', 'true');
-  await setPreference('rc_active_plan', activePlanName);
-
-  const nextState: SubscriptionState = {
-    isPro: true,
-    activePlan: activePlanName,
-    selectedTier: planId,
-    isConfigured: true,
-    mode: 'mock',
-  };
-  notifyListeners(nextState);
-  return nextState;
+function devPreviewPlans(): PaywallPlan[] {
+  const prices = factory.monetization.devPreviewPrices;
+  const parse = (value: string) => Number(value.replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+  return withSavings(
+    (['annual', 'monthly', 'weekly', 'lifetime'] as const).map((kind) => ({
+      id: `dev_${kind}`,
+      kind,
+      priceString: prices[kind],
+      price: parse(prices[kind]),
+      currencyCode: 'USD',
+      pricePerMonthString: null,
+      // Önizlemede deneme metinlerini görmek için; yayında deneme yalnızca mağazadan gelir.
+      freeTrial: kind === 'annual' ? ({ unit: 'day', count: 7 } as const) : null,
+    }))
+  );
 }
 
-export async function restorePurchasesFromStore(): Promise<{
-  state: SubscriptionState;
-  restored: boolean;
-}> {
-  try {
-    const PurchasesModule = await import('react-native-purchases');
-    const Purchases = PurchasesModule.default;
-    const apiKey =
-      Platform.OS === 'ios' ? REVENUECAT_CONFIG.appleApiKey : REVENUECAT_CONFIG.googleApiKey;
+export async function loadPaywallPlans(): Promise<OfferingsResult> {
+  await initPurchases();
 
-    if (!apiKey.includes('replace_with_your') && isInitialized) {
-      const customerInfo = await Purchases.restorePurchases();
-      const isPro =
-        typeof customerInfo.entitlements.active[REVENUECAT_CONFIG.entitlementId] !== 'undefined';
-      const state: SubscriptionState = {
-        isPro,
-        activePlan: isPro ? 'Factory Pro (Restored)' : 'Free Plan',
-        isConfigured: true,
-        mode: 'native',
+  if (state.mode === 'dev-preview') {
+    return { status: 'ok', plans: devPreviewPlans(), mode: 'dev-preview' };
+  }
+  if (state.mode !== 'store') {
+    return { status: 'unavailable', message: 'purchases_not_configured' };
+  }
+
+  try {
+    const offerings = await Purchases.getOfferings();
+    const { offeringId } = factory.monetization.revenueCat;
+    const offering = (offeringId && offerings.all[offeringId]) || offerings.current;
+    const packages = offering?.availablePackages ?? [];
+    if (packages.length === 0) {
+      return { status: 'unavailable', message: 'no_packages' };
+    }
+
+    packagesById.clear();
+    const iosEligibleIds = await iosTrialEligibleIds(packages);
+    const plans = packages.map((pkg) => {
+      packagesById.set(pkg.identifier, pkg);
+      return {
+        id: pkg.identifier,
+        kind: planKindOf(pkg),
+        priceString: pkg.product.priceString,
+        price: pkg.product.price,
+        currencyCode: pkg.product.currencyCode,
+        pricePerMonthString: pkg.product.pricePerMonthString ?? null,
+        freeTrial: freeTrialOf(pkg, iosEligibleIds),
       };
-      await setPreference('rc_is_pro', isPro ? 'true' : 'false');
-      await setPreference('rc_active_plan', state.activePlan);
-      notifyListeners(state);
-      return { state, restored: isPro };
-    }
-  } catch {
-    // Fallback
+    });
+    return { status: 'ok', plans: withSavings(plans), mode: 'store' };
+  } catch (error) {
+    return { status: 'unavailable', message: String((error as Error)?.message ?? error) };
   }
-
-  const savedPro = await getPreference('rc_is_pro');
-  const savedPlan = await getPreference('rc_active_plan');
-  const isPro = savedPro === 'true';
-
-  const state: SubscriptionState = {
-    isPro,
-    activePlan: isPro ? savedPlan || 'Factory Pro (Restored)' : 'Free Plan',
-    isConfigured: true,
-    mode: 'mock',
-  };
-  notifyListeners(state);
-  return { state, restored: isPro };
 }
 
-export async function simulateOrRestorePurchase(
-  currentProState: boolean
-): Promise<SubscriptionState> {
-  const nextPro = !currentProState;
-  const activePlan = nextPro ? 'Factory Pro (Yıllık)' : 'Free Plan';
+// ----------------------------- Satın alma -----------------------------
 
-  await setPreference('rc_is_pro', nextPro ? 'true' : 'false');
-  await setPreference('rc_active_plan', activePlan);
+function isPurchasesError(error: unknown): error is PurchasesError {
+  return typeof error === 'object' && error !== null && 'code' in error;
+}
 
-  const nextState: SubscriptionState = {
-    isPro: nextPro,
-    activePlan,
-    isConfigured: true,
-    mode: 'mock',
-  };
-  notifyListeners(nextState);
-  return nextState;
+export async function purchasePlan(planId: string): Promise<PurchaseOutcome> {
+  await initPurchases();
+
+  if (state.mode === 'dev-preview') {
+    // Yalnızca geliştirme: gerçek mağaza olmadan akışı test etmek için.
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    setState({ isPro: true, activeProductId: planId, expirationDate: null, willRenew: false });
+    return { status: 'success' };
+  }
+  if (state.mode !== 'store') {
+    return { status: 'error', message: 'purchases_not_configured' };
+  }
+
+  const pkg = packagesById.get(planId);
+  if (!pkg) {
+    return { status: 'error', message: 'package_not_found' };
+  }
+
+  try {
+    const { customerInfo } = await Purchases.purchasePackage(pkg);
+    applyCustomerInfo(customerInfo);
+    if (state.isPro) {
+      return { status: 'success' };
+    }
+    // Ödeme alındı ama entitlement açılmadı → RevenueCat'te ürün entitlement'a bağlı değil.
+    return { status: 'error', message: 'entitlement_not_active', code: 'ENTITLEMENT_NOT_ACTIVE' };
+  } catch (error) {
+    if (isPurchasesError(error)) {
+      const codes = Purchases.PURCHASES_ERROR_CODE;
+      if (error.code === codes.PURCHASE_CANCELLED_ERROR || error.userCancelled) {
+        return { status: 'cancelled' };
+      }
+      if (error.code === codes.PAYMENT_PENDING_ERROR) {
+        return { status: 'pending' };
+      }
+      if (error.code === codes.PRODUCT_ALREADY_PURCHASED_ERROR) {
+        const restored = await restorePurchases();
+        return restored.status === 'restored'
+          ? { status: 'success' }
+          : { status: 'error', message: error.message, code: error.code };
+      }
+      return { status: 'error', message: error.message, code: error.code };
+    }
+    return { status: 'error', message: String(error) };
+  }
+}
+
+export async function restorePurchases(): Promise<RestoreOutcome> {
+  await initPurchases();
+
+  if (state.mode === 'dev-preview') {
+    return state.isPro ? { status: 'restored' } : { status: 'not_found' };
+  }
+  if (state.mode !== 'store') {
+    return { status: 'error', message: 'purchases_not_configured' };
+  }
+
+  try {
+    applyCustomerInfo(await Purchases.restorePurchases());
+    return state.isPro ? { status: 'restored' } : { status: 'not_found' };
+  } catch (error) {
+    return {
+      status: 'error',
+      message: isPurchasesError(error) ? error.message : String(error),
+    };
+  }
+}
+
+/** Mağazanın abonelik yönetim sayfasını açar. */
+export async function openManageSubscriptions(): Promise<void> {
+  const url =
+    state.managementUrl ??
+    (Platform.OS === 'ios'
+      ? 'https://apps.apple.com/account/subscriptions'
+      : `https://play.google.com/store/account/subscriptions?package=${factory.app.androidPackage}`);
+  await Linking.openURL(url).catch(() => {});
+}
+
+/** Yalnızca geliştirme: Pro durumunu sıfırlar (dev-preview modunda). */
+export function resetDevPreviewPurchase(): void {
+  if (__DEV__ && state.mode === 'dev-preview') {
+    setState({ isPro: false, activeProductId: null });
+  }
 }

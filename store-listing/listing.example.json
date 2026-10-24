@@ -1,0 +1,93 @@
+{
+  "$comment": [
+    "Bu dosyayı store-listing/listing.json olarak kopyalayıp uygulamaya göre doldurun.",
+    "scripts/factory-publish-google-play.mjs bu metinleri Play Console'a yükler; sınırlar API çağrısından önce kontrol edilir.",
+    "Yer tutucular: {appName} (factory.config.js → app.name), {version} (app.version), {supportEmail} (studio.supportEmail).",
+    "Sınırlar: title ≤ 30, shortDescription ≤ 80, fullDescription ≤ 4000, releaseNotes ≤ 500 karakter;",
+    "abonelik başlığı ≤ 55, abonelik açıklaması ≤ 80, en fazla 4 fayda (her biri ≤ 40);",
+    "tek seferlik ürün başlığı ≤ 55, açıklaması ≤ 200 karakter.",
+    "Yalnızca uygulamada GERÇEKTEN olan özellikleri yazın. 'TODO' içeren metin yayına gönderilmez.",
+    "pricing: fiyatlar mikro birimdir (3.99 USD = 3990000). Örnek değerlerdir; Play Console'da kontrol edin."
+  ],
+  "locales": {
+    "en-US": {
+      "title": "{appName}: Business Tool",
+      "shortDescription": "Fast, offline business documents. Your data stays on your device.",
+      "fullDescription": "{appName} helps you TODO: describe the one problem the app solves in a single sentence.\n\nKEY FEATURES\n• TODO: a feature that really exists in the app\n• TODO: a feature that really exists in the app\n• Works offline — your records are stored only on your device\n• Share clean PDF documents in seconds\n• English and Turkish interface, dark and light themes\n\nPRO\nPro removes ads and unlocks unlimited use. Subscriptions renew automatically until cancelled in Google Play.\n\nSupport: {supportEmail}",
+      "releaseNotes": "{appName} {version}: first release.",
+      "subscriptionBenefits": ["Unlimited use", "No ads", "All Pro features"],
+      "products": {
+        "weekly": {
+          "title": "{appName} Pro — Weekly",
+          "description": "Unlimited use, no ads. Renews every week."
+        },
+        "monthly": {
+          "title": "{appName} Pro — Monthly",
+          "description": "Unlimited use, no ads. Renews every month."
+        },
+        "annual": {
+          "title": "{appName} Pro — Annual",
+          "description": "Unlimited use, no ads. Renews every year."
+        },
+        "lifetime": {
+          "title": "{appName} Pro — Lifetime",
+          "description": "One-time purchase: unlimited use and no ads, without a subscription."
+        }
+      }
+    },
+    "tr-TR": {
+      "title": "{appName}: İş Aracı",
+      "shortDescription": "Hızlı, çevrimdışı iş belgeleri. Verileriniz cihazınızda kalır.",
+      "fullDescription": "{appName} ile TODO: uygulamanın çözdüğü tek sorunu bir cümleyle anlatın.\n\nÖNE ÇIKAN ÖZELLİKLER\n• TODO: uygulamada gerçekten olan bir özellik\n• TODO: uygulamada gerçekten olan bir özellik\n• İnternetsiz çalışır — kayıtlarınız yalnızca cihazınızda saklanır\n• Saniyeler içinde düzenli PDF belgeleri paylaşın\n• Türkçe ve İngilizce arayüz, koyu ve aydınlık tema\n\nPRO\nPro reklamları kaldırır ve sınırsız kullanım sağlar. Abonelikler Google Play'den iptal edilene kadar otomatik olarak yenilenir.\n\nDestek: {supportEmail}",
+      "releaseNotes": "{appName} {version}: ilk sürüm.",
+      "subscriptionBenefits": ["Sınırsız kullanım", "Reklamsız deneyim", "Tüm Pro özellikleri"],
+      "products": {
+        "weekly": {
+          "title": "{appName} Pro — Haftalık",
+          "description": "Sınırsız kullanım, reklamsız. Her hafta yenilenir."
+        },
+        "monthly": {
+          "title": "{appName} Pro — Aylık",
+          "description": "Sınırsız kullanım, reklamsız. Her ay yenilenir."
+        },
+        "annual": {
+          "title": "{appName} Pro — Yıllık",
+          "description": "Sınırsız kullanım, reklamsız. Her yıl yenilenir."
+        },
+        "lifetime": {
+          "title": "{appName} Pro — Ömür Boyu",
+          "description": "Tek seferlik ödeme: abonelik olmadan sınırsız kullanım ve reklamsız deneyim."
+        }
+      }
+    }
+  },
+  "pricing": {
+    "weekly": {
+      "regions": [
+        { "regionCode": "US", "currencyCode": "USD", "priceMicros": "3990000" },
+        { "regionCode": "TR", "currencyCode": "TRY", "priceMicros": "79990000" }
+      ],
+      "otherRegions": { "usdPriceMicros": "3990000", "eurPriceMicros": "3990000" }
+    },
+    "monthly": {
+      "regions": [
+        { "regionCode": "US", "currencyCode": "USD", "priceMicros": "9990000" },
+        { "regionCode": "TR", "currencyCode": "TRY", "priceMicros": "199990000" }
+      ],
+      "otherRegions": { "usdPriceMicros": "9990000", "eurPriceMicros": "9990000" }
+    },
+    "annual": {
+      "regions": [
+        { "regionCode": "US", "currencyCode": "USD", "priceMicros": "29990000" },
+        { "regionCode": "TR", "currencyCode": "TRY", "priceMicros": "799990000" }
+      ],
+      "otherRegions": { "usdPriceMicros": "29990000", "eurPriceMicros": "29990000" }
+    },
+    "lifetime": {
+      "regions": [
+        { "regionCode": "US", "currencyCode": "USD", "priceMicros": "49990000" },
+        { "regionCode": "TR", "currencyCode": "TRY", "priceMicros": "1499990000" }
+      ]
+    }
+  }
+}

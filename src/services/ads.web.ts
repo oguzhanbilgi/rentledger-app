@@ -1,40 +1,65 @@
-import type { AdsStatus, RewardedAdResult } from './ads';
+import { useSyncExternalStore } from 'react';
 
-/**
- * Web Platformu için Google Mobile Ads Yedek (Stub) Servisi
- * react-native-google-mobile-ads yalnızca iOS/Android native modüllerini desteklediği için
- * Web derlemelerinde Metro Bundler otomatik olarak bu dosyayı kullanır.
- */
+/** Web önizlemesi: reklam yok. API native sürümle aynıdır. */
 
-export const ADMOB_UNIT_IDS = {
-  banner: 'ca-app-pub-3940256099942544/6300978111',
-  interstitial: 'ca-app-pub-3940256099942544/1033173712',
-  rewarded: 'ca-app-pub-3940256099942544/5224354917',
+export interface AdsState {
+  ready: boolean;
+  nativeAvailable: boolean;
+  canRequestAds: boolean;
+  privacyOptionsRequired: boolean;
+  bannerUnitId: string | null;
+  rewardedAvailable: boolean;
+}
+
+export type RewardedOutcome =
+  | { status: 'rewarded'; amount: number; simulated?: boolean }
+  | { status: 'dismissed' }
+  | { status: 'unavailable' };
+
+const state: AdsState = {
+  ready: true,
+  nativeAvailable: false,
+  canRequestAds: false,
+  privacyOptionsRequired: false,
+  bannerUnitId: null,
+  // Geliştirmede kota akışını test edebilmek için simüle edilir.
+  rewardedAvailable: __DEV__,
 };
 
-export type { AdsStatus, RewardedAdResult };
-
-export async function initializeMobileAds(): Promise<AdsStatus> {
-  return {
-    initialized: false,
-    sdkMode: 'mock',
-    bannerUnitId: ADMOB_UNIT_IDS.banner,
-  };
+export function getAdsState(): AdsState {
+  return state;
 }
 
-export async function showRewardedAdForUnlock(): Promise<RewardedAdResult> {
-  await new Promise((resolve) => setTimeout(resolve, 2000));
-  return {
-    rewarded: true,
-    sdkMode: 'mock',
-    rewardAmount: 1,
-    rewardType: 'web_simulated_unlock',
-  };
+export function subscribeAds(): () => void {
+  return () => {};
 }
 
-export async function showInterstitialAdIfEligible(isPro: boolean): Promise<boolean> {
-  if (isPro) {
-    return false;
+export function useAds(): AdsState {
+  return useSyncExternalStore(subscribeAds, getAdsState, getAdsState);
+}
+
+export function getLoadedAdsModule(): null {
+  return null;
+}
+
+export function getAdUnitId(): null {
+  return null;
+}
+
+export async function initAds(): Promise<AdsState> {
+  return state;
+}
+
+export async function openAdPrivacyOptions(): Promise<void> {}
+
+export async function showRewardedAd(): Promise<RewardedOutcome> {
+  if (__DEV__) {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    return { status: 'rewarded', amount: 1, simulated: true };
   }
+  return { status: 'unavailable' };
+}
+
+export async function maybeShowInterstitial(): Promise<boolean> {
   return false;
 }
